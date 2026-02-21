@@ -5,8 +5,14 @@ import json
 # Set environment variable for UTF-8 encoding
 os.environ['PYTHONIOENCODING'] = 'utf-8'
 
+import bcrypt
 from flask import Flask, request, jsonify, render_template, session
 from flask_cors import CORS
+from flask_mail import Mail, Message
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+import random
+import time
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -73,6 +79,18 @@ app = Flask(__name__)
 CORS(app)
 app.secret_key = 'your_secret_key_here'  # Change to a secure key in production
 
+# Flask-Mail configuration
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'jakhmolaayush3@gmail.com'
+app.config['MAIL_PASSWORD'] = 'yzsfhhqraakovbjj'
+
+mail = Mail(app)
+
+# Flask-Limiter configuration
+limiter = Limiter(get_remote_address, app=app)
+
 @app.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
@@ -89,12 +107,15 @@ def register():
     if existing_user:
         return jsonify({'error': 'User already exists'}), 400
 
+    # Hash the password using bcrypt
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+    
     # Create new user
     new_user = {
         'id': len(users) + 1,
         'name': name,
         'email': email,
-        'password': password,
+        'password': hashed_password.decode('utf-8'),
         'mobile': mobile,
         'dob': None,
         'gender': None
@@ -174,7 +195,8 @@ def login():
     if not user:
         return jsonify({'error': 'User not registered'}), 404
 
-    if user['password'] != password:
+    # Verify password using bcrypt
+    if not bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
         return jsonify({'error': 'Invalid password'}), 401
 
     user_id = user['id']
@@ -191,7 +213,128 @@ def login():
     session['user_name'] = user['name']
     session['user_id'] = user_id
 
-    return jsonify({'success': True, 'message': 'Login successful', 'userId': user_id})
+    return jsonify({'success': True, 'message': 'Login successful', 'userId': user_id, 'userName': user['name']})
+
+@app.route('/send-login-otp', methods=['POST'])
+def send_login_otp():
+    data = request.get_json()
+    email = data.get('email')
+
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+
+    user = next((u for u in users if u['email'] == email), None)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    otp = str(random.randint(100000, 999999))
+    otp_id = f"otp_{int(time.time())}_{random.randint(1000, 9999)}"
+
+    login_otp_store[otp_id] = {
+        'otp': otp,
+        'email': email,
+        'expiry': time.time() + 300,  # 5 minutes
+        'attempts': 0
+    }
+
+    msg = Message(
+        subject="HangOut Cafe Login Verification Code",
+        sender=app.config['MAIL_USERNAME'],
+        recipients=[email]
+    )
+
+    msg.html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+body {{
+    font-family: Arial, sans-serif;
+    background-color: #f4f6f8;
+    padding: 20px;
+}}
+
+.container {{
+    max-width: 500px;
+    margin: auto;
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    text-align: center;
+}}
+
+.header {{
+    font-size: 22px;
+    font-weight: bold;
+    color: #2c3e50;
+}}
+
+.otp-box {{
+    margin: 25px 0;
+    font-size: 32px;
+    letter-spacing: 6px;
+    font-weight: bold;
+    color: white;
+    background: #3498db;
+    padding: 15px;
+    border-radius: 8px;
+    display: inline-block;
+}}
+
+.info {{
+    font-size: 14px;
+    color: #555;
+}}
+
+.footer {{
+    margin-top: 25px;
+    font-size: 12px;
+    color: #999;
+}}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="header">
+HangOut Cafe Security Verification
+</div>
+
+<p>Hello,</p>
+
+<p>Your One Time Password (OTP) for login is:</p>
+
+<div class="otp-box">{otp}</div>
+
+<p class="info">
+This OTP is valid for <b>5 minutes</b>.
+</p>
+
+<p class="info">
+Do not share this code with anyone for security reasons.
+</p>
+
+<div class="footer">
+HangOut Cafe • Secure Login System
+</div>
+
+</div>
+
+</body>
+</html>
+"""
+
+    try:
+        mail.send(msg)
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return jsonify({'error': 'Failed to send OTP email'}), 500
+
+    return jsonify({'message': 'OTP sent successfully', 'otpId': otp_id})
 
 @app.route('/verify-login-otp', methods=['POST'])
 def verify_login_otp():

@@ -1,3 +1,78 @@
+ // Login function for email/password login
+async function loginUser(e) {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+
+  try {
+    const response = await fetch('http://127.0.0.1:3000/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Login failed');
+    }
+
+    // Store email for OTP verification
+    localStorage.setItem('loginEmail', email);
+
+    // Hide login button and form, show OTP section
+    document.getElementById('loginBtn').style.display = 'none';
+    document.querySelector('form').style.display = 'none';
+    document.getElementById('otpSection').style.display = 'block';
+
+    // Send OTP to user's email
+    await sendOtp(email);
+
+  } catch (error) {
+    alert('Error logging in: ' + error.message);
+  }
+
+  return false;
+}
+
+// Function to send OTP to email
+async function sendOtp(email) {
+  try {
+    const response = await fetch('http://127.0.0.1:3000/send-login-otp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email: email })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to send OTP');
+    }
+
+    // Store OTP ID and expiry time (5 minutes from now)
+    localStorage.setItem('otpId', data.otpId);
+    localStorage.setItem('otpExpiry', Date.now() + 300000); // 5 minutes in milliseconds
+
+    // Show success message
+    document.getElementById('otpMessage').textContent = 'OTP sent to your email!';
+    
+    // Start timer
+    startTimer();
+
+  } catch (error) {
+    alert('Error sending OTP: ' + error.message);
+    // Show login form again if OTP fails
+    document.getElementById('loginBtn').style.display = 'block';
+    document.querySelector('form').style.display = 'block';
+    document.getElementById('otpSection').style.display = 'none';
+  }
+}
+
 // Existing function: registerUser
 async function registerUser(e) {
   e.preventDefault();
@@ -228,48 +303,45 @@ function toggleNavMenu() {
 // Global variable to store timer interval ID
 let otpTimerInterval;
 
-// Function to generate OTP (API call)
+// Function to generate OTP (API call) - SECURE: Calls backend to send OTP
 async function generateOtp() {
   const email = document.getElementById('loginEmail').value;
 
+  if (!email) {
+    alert('Please enter your email address');
+    return;
+  }
+
   try {
-    const response = await fetch('http://127.0.0.1:3000/login', {
+    // Call the secure backend endpoint to send OTP
+    const response = await fetch('http://127.0.0.1:3000/send-login-otp', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ email: email, password: document.getElementById('loginPassword').value })
+      body: JSON.stringify({ email: email })
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-      throw new Error('Failed to send login OTP');
+      throw new Error(data.error || 'Failed to send OTP');
     }
 
-    const data = await response.json();
+    // Store the OTP ID returned by backend (not the OTP itself!)
     localStorage.setItem('otpId', data.otpId);
-    localStorage.setItem('otpExpiry', Date.now() + 120000); // 2 minutes
+    // Store expiry time (5 minutes from now)
+    localStorage.setItem('otpExpiry', Date.now() + 300000); // 5 minutes in milliseconds
 
-    // Show OTP section with initial message
+    // Show OTP section
     document.getElementById('otpSection').style.display = 'block';
     document.getElementById('sendOtpBtn').style.display = 'none';
     document.getElementById('otpMessage').textContent = 'Sending OTP to your email...';
 
-    // Start timer
+    // Start timer (5 minutes as configured in backend)
     startTimer();
 
-    // Send OTP via EmailJS
-    const emailSent = await sendOtpViaEmail(email, data.otp);
-
-    if (emailSent) {
-      document.getElementById('otpMessage').textContent = `OTP sent to your email successfully!`;
-    } else {
-      // Email sending failed - show error message
-      document.getElementById('otpMessage').textContent = `Failed to send OTP email. Please check your EmailJS configuration and try again.`;
-      // Hide OTP section if email fails
-      document.getElementById('otpSection').style.display = 'none';
-      document.getElementById('sendOtpBtn').style.display = 'block';
-      return; // Exit function if email fails
-    }
+    document.getElementById('otpMessage').textContent = `OTP sent to your email successfully!`;
   } catch (error) {
     alert('Error sending login OTP: ' + error.message);
   }
@@ -282,7 +354,7 @@ function startTimer() {
     clearInterval(otpTimerInterval);
   }
 
-  let timeLeft = 120; // 2 minutes
+  let timeLeft = 300; // 5 minutes (matches backend expiry)
   const timerDisplay = document.getElementById('timerDisplay');
   const resendBtn = document.getElementById('resendOtpBtn');
 
@@ -381,13 +453,6 @@ async function verifyOtp() {
   console.log('Entered OTP:', enteredOtp);
   const otpId = localStorage.getItem('otpId');
   console.log('OTP ID:', otpId);
-  const expiry = parseInt(localStorage.getItem('otpExpiry'));
-  console.log('Expiry:', expiry, 'Current time:', Date.now());
-
-  if (Date.now() > expiry) {
-    alert('OTP expired! Please resend.');
-    return;
-  }
 
   try {
     const response = await fetch('http://127.0.0.1:3000/verify-login-otp', {
