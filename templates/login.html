@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cafe Zone | Login</title>
+    <title> Healthy-Cafe-Zone | Loginpage</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -26,9 +26,9 @@
                         <label for="loginPassword">Password</label>
                         <input type="password" id="loginPassword" placeholder="Enter your password" required>
 
-                        <button type="submit" class="login-button green-btn" id="loginBtn">Login</button>
+                        <button type="submit" class="login-button green-btn" id="loginBtn">Login User</button>
 
-                        <p class="register-link-text">Don't have an account? <a href="#" onclick="showRegisterPanel()" class="brown-link">Register Here</a></p>
+                        <p class="register-link-text">Don't have an account? <a href="#" onclick="showRegisterPanel()" class="brown-link">Register Now</a></p>
                     </form>
                     
                     <!-- OTP Section - Hidden by default -->
@@ -51,16 +51,16 @@
 
             <div class="form-panel register-panel">
                 <div class="form-container login-form">
-                    <h2 class="only-register-title"> Register</h2>
+                    <h2 class="only-register-title"> REGISTERATION FORM</h2>
                     <form onsubmit="return registerUser(event)">
                         <input type="text" id="regName" placeholder="Full Name" required>
                         <input type="email" id="regEmail" placeholder="Email ID" required>
                         <input type="text" id="regMobile" placeholder="Mobile Number" required>
                         <input type="password" id="regPassword" placeholder="Password" required>
 
-                        <button type="submit" class="login-button green-btn">Register</button>
+                        <button type="submit" class="login-button green-btn">Register!</button>
 
-                        <p class="register-link-text">Already have an account? <a href="#" onclick="showLoginPanel()" class="brown-link">Login Here</a></p>
+                        <p class="register-link-text">Already have an account? <a href="#" onclick="showLoginPanel()" class="brown-link">Sign in</a></p>
                     </form>
                 </div>
             </div>
