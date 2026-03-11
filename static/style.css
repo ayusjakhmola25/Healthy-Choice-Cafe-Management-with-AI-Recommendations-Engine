@@ -1983,3 +1983,44 @@ footer p {
     background: #f0f0f0;
     color: #333;
 }
+
+/* Server Down Page Styles */
+.server-down-page {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    text-align: center;
+    margin-top: 100px;
+    background: linear-gradient(135deg, #f9f9f9 0%, #e8f0f5 100%);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.server-down-page h1 {
+    color: #34495E;
+    font-size: 2.5rem;
+    margin-bottom: 20px;
+}
+
+.server-down-page p {
+    color: #666;
+    font-size: 1.1rem;
+    margin-bottom: 30px;
+}
+
+.retry-button {
+    background-color: #5DADE2;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    box-shadow: 0 4px 10px rgba(93, 173, 226, 0.3);
+}
+
+.retry-button:hover {
+    background-color: #4682B4;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(93, 173, 226, 0.4);
+}
