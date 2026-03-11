@@ -243,9 +243,9 @@ async function updateProfile(e) {
 
     const updatedProfileData = {
         mobile: mobile,
-        name: document.getElementById('profileName').value,
-        dob: document.getElementById('profileDOB').value,
-        gender: document.getElementById('profileGender').value
+        name: document.getElementById('name').value,
+        dob: document.getElementById('dob').value,
+        gender: document.getElementById('gender').value
     };
 
     try {
@@ -450,6 +450,15 @@ function handleDietSelection(dietPreference) {
   localStorage.setItem('dietPreference', dietPreference);
   document.getElementById('dietPopup').style.display = 'none';
   loadFoodItems();
+}
+
+// Function to save logged-in user's basic info in localStorage 
+function saveUserToLocal(userInfo) { 
+	localStorage.setItem("user", JSON.stringify({ 
+		id: userInfo.id,
+		name: userInfo.name,
+		email:	userInfo.email 
+	}));
 }
 
 // Function to verify OTP (API call)
@@ -1772,17 +1781,22 @@ function toggleEditMode() {
     const editBtn = document.querySelector('.edit-profile-btn');
     const form = document.getElementById('profileForm');
 
-    if (table.style.display === 'none') {
-        // Switch to view mode
+    if (!table || !editBtn || !form) return;
+
+    // Check current display state
+    const isFormVisible = form.style.display === 'block';
+    
+    if (isFormVisible) {
+        // Switch to view mode (hide form, show table and button)
         table.style.display = 'table';
-        editBtn.textContent = 'Edit Profile';
+        editBtn.style.display = 'inline-block';
         form.style.display = 'none';
-        // Reload profile data to show updated info
+        // Reload profile data to show original info
         loadProfile();
     } else {
-        // Switch to edit mode
+        // Switch to edit mode (hide table, show form)
         table.style.display = 'none';
-        editBtn.textContent = 'Cancel';
+        editBtn.style.display = 'none';
         form.style.display = 'block';
     }
 }

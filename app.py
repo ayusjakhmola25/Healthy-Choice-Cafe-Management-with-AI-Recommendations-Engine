@@ -155,6 +155,19 @@ def check_user():
 
     return jsonify({"exists":False})
 
+@app.route('/user-profile/<int:user_id>')
+def get_user_profile(user_id):
+
+	cursor.execute("""
+	SELECT id,name,email,mobile,dob,gender
+	FROM users
+	WHERE id=%s
+	""",(user_id,))
+
+	user = cursor.fetchone()
+
+	return jsonify(user)
+
 @app.route('/update-profile', methods=['POST'])
 def update_profile():
 

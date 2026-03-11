@@ -63,33 +63,23 @@
                         </tbody>
                     </table>
                     <button class="edit-profile-btn" onclick="toggleEditMode()">Edit Profile</button>
-                    <form id="profileForm" onsubmit="return updateProfile(event)" style="display:none;">
-                        <label for="profileName">Full Name</label>
-                        <input type="text" id="profileName" placeholder="Full Name" required>
+                    <form id="profileForm" onsubmit="updateProfile(event)" style="display: none;">
+                        <label>Name</label>
+                        <input type="text" id="name">
 
-                        <label for="profileEmail">Email</label>
-                        <input type="email" id="profileEmail" placeholder="email@example.com" readonly>
+                        <label>Mobile</label>
+                        <input type="text" id="mobile">
 
-                        <label for="profileMobile">Mobile Number</label>
-                        <input type="tel" id="profileMobile" placeholder="+1 (555) 000-0000">
+                        <label>DOB</label>
+                        <input type="date" id="dob">
 
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="profileDOB">Date of Birth</label>
-                                <input type="date" id="profileDOB">
-                            </div>
-                            <div class="form-group">
-                                <label for="profileGender">Gender</label>
-                                <select id="profileGender">
-                                    <option value="">Select Gender</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
-                        </div>
+                        <label>Gender</label>
+                        <select id="gender">
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                        </select>
 
-                        <button type="submit" class="update-button" style="width:100%">Save Changes</button>
+                        <button type="submit" class="green-btn">Update Profile</button>
                         <button type="button" class="cancel-button" onclick="toggleEditMode()">Cancel</button>
                     </form>
                 </div>
@@ -156,5 +146,25 @@
     </footer>
 
     <script src="/static/script.js"></script>
+    <script>
+        async function loadProfile(){
+
+            const user = JSON.parse(localStorage.getItem("user"))
+
+            const response = await fetch(
+                "http://127.0.0.1:3000/user-profile/"+user.id
+            )
+
+            const data = await response.json()
+
+            document.getElementById("name").value = data.name
+            document.getElementById("mobile").value = data.mobile
+            document.getElementById("dob").value = data.dob
+            document.getElementById("gender").value = data.gender
+
+        }
+
+        document.addEventListener("DOMContentLoaded",loadProfile)
+    </script>
 </body>
 </html>
