@@ -1,55 +1,59 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<title>Users</title>
-<link rel="stylesheet" href="/static/css/admin.css">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="/static/css/admin.css">
 </head>
 
 <body>
 
-<div class="layout">
+    <div class="layout">
 
-<div class="sidebar">
-<h2>Healthy Choice</h2>
+        <div class="sidebar">
+            <h2>Healthy Choice</h2>
 
-<ul>
-<li><a href="/admin/dashboard">Dashboard</a></li>
-<li><a href="/admin/users">Users</a></li>
-<li><a href="/admin/menu">Menu</a></li>
-<li><a href="/admin/inventory">Inventory</a></li>
-<li><a href="/admin/orders">Orders</a></li>
-<li><a href="/admin/security-logs">Security Logs</a></li>
-<li><a href="/admin/settings">Settings</a></li>
-</ul>
+            <ul>
+                <li><a href="/admin/dashboard">Dashboard</a></li>
+                <li><a href="/admin/users">Users</a></li>
+                <li><a href="/admin/menu">Menu</a></li>
+                <li><a href="/admin/inventory">Inventory</a></li>
+                <li><a href="/admin/orders">Orders</a></li>
+                <li><a href="/admin/security-logs">Security Logs</a></li>
+                <li><a href="/admin/settings">Settings</a></li>
+            </ul>
+        </div>
 
-</div>
+        <div class="main">
+            <h1>Dashboard</h1>
 
-<div class="main">
+            <div class="cards">
 
-<h1>Users</h1>
+                <div class="card">
+                    <h3>Total Users</h3>
+                    <p id="totalUsers"></p>
+                </div>
 
-<table>
+                <div class="card">
+                    <h3>Total Orders</h3>
+                    <p id="totalOrders"></p>
+                </div>
 
-<thead>
+                <div class="card">
+                    <h3>Total Revenue</h3>
+                    <p id="totalRevenue"></p>
+                </div>
 
-<tr>
-<th>Name</th>
-<th>Email</th>
-<th>Role</th>
-<th>Created</th>
-</tr>
+                <div class="card">
+                    <h3>Low Stock Items</h3>
+                    <p id="lowStock"></p>
+                </div>
 
-</thead>
+            </div>
+        </div>
 
-<tbody id="usersTable">
-
-</tbody>
-
-</table>
-
-</div>
-
-</div>
+    </div>
 
 </body>
+
 </html>

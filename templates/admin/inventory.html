@@ -1,44 +1,43 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<title>Inventory</title>
-<link rel="stylesheet" href="/static/css/admin.css">
+    <title>Inventory</title>
+    <link rel="stylesheet" href="/static/css/admin.css">
 </head>
 
 <body>
 
-<div class="layout">
+    <div class="layout">
 
-<div class="sidebar">
-<h2>Healthy Choice</h2>
-</div>
+        <div class="sidebar">
+            <h2>Healthy Choice</h2>
+        </div>
 
-<div class="main">
+        <div class="main">
 
-<h1>Inventory</h1>
+            <h1>Inventory</h1>
 
-<table>
+            <table>
 
-<thead>
+                <thead>
+                    <tr>
+                        <th>Ingredient</th>
+                        <th>Quantity</th>
+                        <th>Threshold</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
 
-<tr>
-<th>Ingredient</th>
-<th>Quantity</th>
-<th>Threshold</th>
-<th>Status</th>
-</tr>
+                <tbody id="inventoryTable">
+                </tbody>
 
-</thead>
+            </table>
 
-<tbody id="inventoryTable">
+        </div>
 
-</tbody>
-
-</table>
-
-</div>
-
-</div>
+    </div>
 
 </body>
+
 </html>

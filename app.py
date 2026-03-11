@@ -215,6 +215,34 @@ def login():
         "userId":user["id"]
     })
 
+@app.route('/admin/login', methods=['POST'])
+def admin_login():
+
+    data = request.get_json()
+
+    email = data.get("email")
+    password = data.get("password")
+
+    cursor.execute("""
+    SELECT * FROM users
+    WHERE email=%s AND role='admin'
+    """,(email,))
+
+    admin = cursor.fetchone()
+
+    if not admin:
+        return jsonify({"error":"Admin not found"}),404
+
+    if not bcrypt.checkpw(password.encode('utf-8'), admin["password_hash"].encode('utf-8')):
+        return jsonify({"error":"Invalid password"}),401
+
+    session["admin_id"] = admin["id"]
+
+    return jsonify({
+        "success":True,
+        "message":"Admin login successful"
+    })
+
 @app.route('/send-login-otp', methods=['POST'])
 def send_login_otp():
 
@@ -894,7 +922,19 @@ def admin_inventory():
 
 @app.route("/admin/orders")
 def admin_orders():
-    return render_template("admin/orders.html")
+
+    if "admin_id" not in session:
+        return jsonify({"error":"Unauthorized"}),403
+
+    cursor.execute("""
+    SELECT orders.*,users.name
+    FROM orders
+    JOIN users ON users.id=orders.user_id
+    """)
+
+    orders = cursor.fetchall()
+
+    return jsonify(orders)
 
 @app.route("/admin/security-logs")
 def admin_logs():

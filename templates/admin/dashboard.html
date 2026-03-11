@@ -1,62 +1,65 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<title>Dashboard</title>
-<link rel="stylesheet" href="/static/css/admin.css">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="/static/css/admin.css">
 </head>
 
 <body>
 
-<div class="layout">
+    <div class="layout">
 
-<div class="sidebar">
+        <!-- Sidebar -->
+        <div class="sidebar">
 
-<h2>Healthy Choice</h2>
+            <h2>Healthy Choice</h2>
 
-<ul>
-<li><a href="/admin/dashboard">Dashboard</a></li>
-<li><a href="/admin/users">Users</a></li>
-<li><a href="/admin/menu">Menu</a></li>
-<li><a href="/admin/inventory">Inventory</a></li>
-<li><a href="/admin/orders">Orders</a></li>
-<li><a href="/admin/security-logs">Security Logs</a></li>
-<li><a href="/admin/settings">Settings</a></li>
-</ul>
+            <ul>
+                <li><a href="/admin/dashboard">Dashboard</a></li>
+                <li><a href="/admin/users">Users</a></li>
+                <li><a href="/admin/menu">Menu</a></li>
+                <li><a href="/admin/inventory">Inventory</a></li>
+                <li><a href="/admin/orders">Orders</a></li>
+                <li><a href="/admin/security-logs">Security Logs</a></li>
+                <li><a href="/admin/settings">Settings</a></li>
+            </ul>
 
-</div>
+        </div>
 
+        <!-- Main Content -->
+        <div class="main">
 
-<div class="main">
+            <h1>Dashboard</h1>
 
-<h1>Dashboard</h1>
+            <div class="cards">
 
-<div class="cards">
+                <div class="card">
+                    <h3>Total Users</h3>
+                    <p id="totalUsers"></p>
+                </div>
 
-<div class="card">
-<h3>Total Users</h3>
-<p id="totalUsers"></p>
-</div>
+                <div class="card">
+                    <h3>Total Orders</h3>
+                    <p id="totalOrders"></p>
+                </div>
 
-<div class="card">
-<h3>Total Orders</h3>
-<p id="totalOrders"></p>
-</div>
+                <div class="card">
+                    <h3>Total Revenue</h3>
+                    <p id="totalRevenue"></p>
+                </div>
 
-<div class="card">
-<h3>Total Revenue</h3>
-<p id="totalRevenue"></p>
-</div>
+                <div class="card">
+                    <h3>Low Stock Items</h3>
+                    <p id="lowStock"></p>
+                </div>
 
-<div class="card">
-<h3>Low Stock Items</h3>
-<p id="lowStock"></p>
-</div>
+            </div>
 
-</div>
+        </div>
 
-</div>
-
-</div>
+    </div>
 
 </body>
+
 </html>
