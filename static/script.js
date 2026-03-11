@@ -1710,7 +1710,7 @@ async function renderProfileInsights() {
         const loginResponse = await fetch('http://127.0.0.1:3000/login-count', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mobile: user.mobile })
+            body: JSON.stringify({ email: user.email })
         });
         if (loginResponse.ok) {
             const loginData = await loginResponse.json();

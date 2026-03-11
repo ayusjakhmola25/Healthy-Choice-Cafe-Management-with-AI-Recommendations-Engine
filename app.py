@@ -450,12 +450,22 @@ def login_count():
     if not email:
         return jsonify({'error': 'Email is required'}), 400
 
-    user = next((u for u in users if u['email'] == email), None)
+    # Get user by email first
+    cursor.execute("SELECT id FROM users WHERE email=%s", (email,))
+    user = cursor.fetchone()
+    
     if not user:
         return jsonify({'loginCount': 0})
 
-    login_count_value = len([lh for lh in login_history if lh['user_id'] == user['id']])
-    return jsonify({'loginCount': login_count_value})
+    # Get login count from database
+    cursor.execute("""
+        SELECT COUNT(*) as total
+        FROM login_history
+        WHERE user_id=%s
+    """, (user['id'],))
+    
+    result = cursor.fetchone()
+    return jsonify({'loginCount': result['total']})
 
 @app.route('/get-login-history', methods=['POST'])
 def get_login_history():
