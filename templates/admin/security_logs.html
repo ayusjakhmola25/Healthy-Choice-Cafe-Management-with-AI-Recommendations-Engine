@@ -1,43 +1,149 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-    <title>Security Logs</title>
-    <link rel="stylesheet" href="/static/css/admin.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Healthy Choice Admin | Security Logs</title>
+    <link rel="stylesheet" href="/static/admin.css">
+    <script src="/static/admin.js" defer></script>
 </head>
+<body class="admin-body">
 
-<body>
+    <div class="admin-layout">
 
-    <div class="layout">
+        <!-- Sidebar -->
+        <aside class="admin-sidebar" aria-label="Admin navigation">
+            <div class="sidebar-brand">
+                <div class="brand-icon" aria-hidden="true">🍃</div>
+                <div class="brand-text">
+                    <span class="brand-name">Healthy Choice</span>
+                    <span class="brand-subtitle">Admin Portal</span>
+                </div>
+            </div>
 
-        <div class="sidebar">
-            <h2>Healthy Choice</h2>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li>
+                        <a href="/admin/dashboard" class="sidebar-link" data-nav="dashboard">
+                            <span class="sidebar-link-icon" aria-hidden="true">📊</span>
+                            <span class="sidebar-link-label">Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/admin/users" class="sidebar-link" data-nav="users">
+                            <span class="sidebar-link-icon" aria-hidden="true">👥</span>
+                            <span class="sidebar-link-label">Users</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/admin/menu" class="sidebar-link" data-nav="menu">
+                            <span class="sidebar-link-icon" aria-hidden="true">📋</span>
+                            <span class="sidebar-link-label">Menu</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/admin/inventory" class="sidebar-link" data-nav="inventory">
+                            <span class="sidebar-link-icon" aria-hidden="true">📦</span>
+                            <span class="sidebar-link-label">Inventory</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/admin/orders" class="sidebar-link" data-nav="orders">
+                            <span class="sidebar-link-icon" aria-hidden="true">🛒</span>
+                            <span class="sidebar-link-label">Orders</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/admin/security-logs" class="sidebar-link" data-nav="security-logs">
+                            <span class="sidebar-link-icon" aria-hidden="true">🔐</span>
+                            <span class="sidebar-link-label">Security Logs</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/admin/settings" class="sidebar-link" data-nav="settings">
+                            <span class="sidebar-link-icon" aria-hidden="true">⚙️</span>
+                            <span class="sidebar-link-label">Settings</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="sidebar-user-avatar" aria-hidden="true">
+                        {{ (admin_name or 'A')[:1] if admin_name is defined else 'A' }}
+                    </div>
+                    <div class="sidebar-user-meta">
+                        <span class="sidebar-user-name">
+                            {{ admin_name or 'Admin User' }}
+                        </span>
+                        <span class="sidebar-user-email">
+                            {{ admin_email or 'admin@example.com' }}
+                        </span>
+                    </div>
+                </div>
+                <a href="/admin/logout" class="sidebar-signout">Sign Out</a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="admin-main">
+            <header class="admin-header">
+                <button class="sidebar-toggle" type="button" aria-label="Toggle navigation">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <div class="header-title-group">
+                    <h1 class="page-title">Security Logs</h1>
+                    <p class="page-subtitle">Review recent actions in the system</p>
+                </div>
+            </header>
+
+            <main class="admin-content">
+                <section aria-label="Security log entries">
+                    <div class="logs-toolbar">
+                        <input
+                            type="search"
+                            class="field-input"
+                            placeholder="Search logs...">
+
+                        <select class="logs-filter-select" aria-label="Filter by category">
+                            <option value="">All Categories</option>
+                            <option value="auth">Authentication</option>
+                            <option value="user">User Management</option>
+                            <option value="menu">Menu</option>
+                            <option value="inventory">Inventory</option>
+                            <option value="orders">Orders</option>
+                            <option value="settings">Settings</option>
+                        </select>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table class="admin-table" aria-label="Security logs table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Timestamp</th>
+                                    <th scope="col">User</th>
+                                    <th scope="col">Action</th>
+                                    <th scope="col">Category</th>
+                                    <th scope="col">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logsTable">
+                                <tr class="placeholder-row">
+                                    <td colspan="5">
+                                        Security events will appear here once loaded.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </main>
         </div>
-
-        <div class="main">
-
-            <h1>Security Logs</h1>
-
-            <table>
-
-                <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>User</th>
-                        <th>Action</th>
-                        <th>Category</th>
-                    </tr>
-                </thead>
-
-                <tbody id="logsTable">
-                </tbody>
-
-            </table>
-
-        </div>
-
     </div>
 
 </body>
-
 </html>
+

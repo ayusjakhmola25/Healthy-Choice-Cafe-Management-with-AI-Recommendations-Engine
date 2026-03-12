@@ -148,24 +148,72 @@
 
     <script src="/static/script.js"></script>
     <script>
-        async function loadProfile(){
+        async function loadProfile() {
+            const stored = localStorage.getItem("user");
+            if (!stored) {
+                window.location.href = "/";
+                return;
+            }
 
-            const user = JSON.parse(localStorage.getItem("user"))
+            const user = JSON.parse(stored);
 
-            const response = await fetch(
-                "http://127.0.0.1:3000/user-profile/"+user.id
-            )
+            try {
+                // Fetch full profile + stats from backend
+                const resp = await fetch("/profile-data", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ mobile: user.mobile })
+                });
 
-            const data = await response.json()
+                if (!resp.ok) {
+                    console.error("Failed to load profile data");
+                    return;
+                }
 
-            document.getElementById("name").value = data.name
-            document.getElementById("mobile").value = data.mobile
-            document.getElementById("dob").value = data.dob
-            document.getElementById("gender").value = data.gender
+                const payload = await resp.json();
+                const data = payload.user || {};
 
+                // Populate form fields
+                document.getElementById("name").value = data.name || "";
+                document.getElementById("mobile").value = data.mobile || "";
+                document.getElementById("dob").value = data.dob || "";
+                document.getElementById("gender").value = data.gender || "";
+
+                // Main profile display
+                document.getElementById("profileDisplayName").textContent = data.name || "-";
+                document.getElementById("profileDisplayEmail").textContent = data.email || "-";
+                document.getElementById("profileNameDisplay").textContent = data.name || "-";
+                document.getElementById("profileEmailDisplay").textContent = data.email || "-";
+                document.getElementById("profileMobileDisplay").textContent = data.mobile || "-";
+                document.getElementById("profileDOBDisplay").textContent = data.dob || "-";
+                document.getElementById("profileGenderDisplay").textContent = data.gender || "-";
+
+                // Login statistics
+                document.getElementById("totalLogins").textContent = payload.loginCount ?? 0;
+
+                const historyContainer = document.getElementById("loginHistoryContainer");
+                historyContainer.innerHTML = "";
+                (payload.loginHistory || []).forEach(entry => {
+                    const wrapper = document.createElement("div");
+                    wrapper.className = "login-history-row";
+                    const ts = entry.login_time ? new Date(entry.login_time).toLocaleString() : "Unknown time";
+                    wrapper.textContent = ts;
+                    historyContainer.appendChild(wrapper);
+                });
+
+                // Orders and nutrition statistics
+                document.getElementById("totalOrdersCount").textContent = payload.totalOrders ?? 0;
+                document.getElementById("prefText").textContent = payload.preference || "-";
+                document.getElementById("avgProtein").textContent = (payload.avgProtein ?? 0) + "g";
+                document.getElementById("avgCarbs").textContent = (payload.avgCarbs ?? 0) + "g";
+                document.getElementById("avgFats").textContent = (payload.avgFats ?? 0) + "g";
+                document.getElementById("avgCalories").textContent = payload.avgCalories ?? 0;
+            } catch (err) {
+                console.error("Error loading profile:", err);
+            }
         }
 
-        document.addEventListener("DOMContentLoaded",loadProfile)
+        document.addEventListener("DOMContentLoaded", loadProfile);
     </script>
 </body>
 </html>

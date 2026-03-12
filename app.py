@@ -229,32 +229,43 @@ def login():
         "userId":user["id"]
     })
 
-@app.route('/admin/login', methods=['POST'])
+@app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
+    """
+    GET  - render admin login page
+    POST - authenticate admin and establish session (JSON API)
+    """
+    if request.method == 'GET':
+        if "admin_id" in session:
+            return render_template("admin/dashboard.html")
+        return render_template("admin/login.html")
 
-    data = request.get_json()
+    data = request.get_json() or {}
 
     email = data.get("email")
     password = data.get("password")
 
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
     cursor.execute("""
     SELECT * FROM users
     WHERE email=%s AND role='admin'
-    """,(email,))
+    """, (email,))
 
     admin = cursor.fetchone()
 
     if not admin:
-        return jsonify({"error":"Admin not found"}),404
+        return jsonify({"error": "Admin not found"}), 404
 
     if not bcrypt.checkpw(password.encode('utf-8'), admin["password_hash"].encode('utf-8')):
-        return jsonify({"error":"Invalid password"}),401
+        return jsonify({"error": "Invalid password"}), 401
 
     session["admin_id"] = admin["id"]
 
     return jsonify({
-        "success":True,
-        "message":"Admin login successful"
+        "success": True,
+        "message": "Admin login successful"
     })
 
 @app.route('/send-login-otp', methods=['POST'])
@@ -476,17 +487,35 @@ def get_login_history():
     if not email:
         return jsonify({'error': 'Email is required'}), 400
 
-    user = next((u for u in users if u['email'] == email), None)
+    # Look up user in the database
+    cursor.execute("SELECT id FROM users WHERE email=%s", (email,))
+    user = cursor.fetchone()
+
     if not user:
         return jsonify({'loginHistory': []})
 
-    user_login_history = [lh for lh in login_history if lh['user_id'] == user['id']]
-    user_login_history.sort(key=lambda x: x['login_time'], reverse=True)
-    history_data = [{
-        'id': entry['id'],
-        'login_time': entry['login_time']
-    } for entry in user_login_history]
-    return jsonify({'loginHistory': history_data})
+    # Fetch login history from database
+    cursor.execute(
+        """
+        SELECT id, login_time, ip_address
+        FROM login_history
+        WHERE user_id=%s
+        ORDER BY login_time DESC
+        """,
+        (user["id"],),
+    )
+    rows = cursor.fetchall()
+
+    history_data = [
+        {
+            "id": row["id"],
+            "login_time": row["login_time"].isoformat() if row["login_time"] else None,
+            "ip_address": row.get("ip_address"),
+        }
+        for row in rows
+    ]
+
+    return jsonify({"loginHistory": history_data})
 
 @app.route('/food-items', methods=['GET'])
 def get_food_items():
@@ -828,7 +857,16 @@ def get_profile_data():
     if not mobile:
         return jsonify({'error': 'Mobile number is required'}), 400
 
-    user = next((u for u in users if u['mobile'] == mobile), None)
+    # Fetch user from database
+    cursor.execute(
+        """
+        SELECT id, name, email, mobile, dob, gender
+        FROM users
+        WHERE mobile=%s
+        """,
+        (mobile,),
+    )
+    user = cursor.fetchone()
 
     if not user:
         return jsonify({'error': 'User not found'}), 404
@@ -838,35 +876,45 @@ def get_profile_data():
         'name': user['name'],
         'mobile': user['mobile'],
         'email': user['email'],
-        'dob': user['dob'],
-        'gender': user['gender']
+        'dob': user.get('dob'),
+        'gender': user.get('gender'),
     }
 
-    # Get login count
-    login_count_value = len([lh for lh in login_history if lh['user_id'] == user['id']])
+    # Login statistics from database
+    cursor.execute(
+        """
+        SELECT COUNT(*) AS total
+        FROM login_history
+        WHERE user_id=%s
+        """,
+        (user['id'],),
+    )
+    login_count_row = cursor.fetchone()
+    login_count_value = login_count_row['total'] if login_count_row else 0
 
-    # Get login history
-    user_login_history = [lh for lh in login_history if lh['user_id'] == user['id']]
-    user_login_history.sort(key=lambda x: x['login_time'], reverse=True)
-    history_data = [{
-        'id': entry['id'],
-        'login_time': entry['login_time']
-    } for entry in user_login_history]
+    cursor.execute(
+        """
+        SELECT id, login_time, ip_address
+        FROM login_history
+        WHERE user_id=%s
+        ORDER BY login_time DESC
+        """,
+        (user['id'],),
+    )
+    login_rows = cursor.fetchall()
+    history_data = [
+        {
+            'id': row['id'],
+            'login_time': row['login_time'].isoformat() if row['login_time'] else None,
+            'ip_address': row.get('ip_address'),
+        }
+        for row in login_rows
+    ]
 
-    # Get orders
+    # Orders and nutritional insights
+    # NOTE: nutrition is still derived from in-memory guest_orders for now
     orders = [o for o in guest_orders if o['mobile'] == mobile]
     orders.sort(key=lambda x: x['order_date'], reverse=True)
-    orders_data = [{
-        'id': order['id'],
-        'name': order['name'],
-        'mobile': order['mobile'],
-        'email': order['email'],
-        'order_data': order['order_data'],
-        'total_amount': order['total_amount'],
-        'payment_method': order['payment_method'],
-        'diet_preference': order['diet_preference'],
-        'order_date': order['order_date']
-    } for order in orders]
 
     # Calculate nutritional insights
     total_orders = len(orders)
@@ -941,12 +989,50 @@ def admin_required(f):
 @app.route("/admin/dashboard")
 @admin_required
 def admin_dashboard():
-    return render_template("admin/dashboard.html")
+    # Aggregate basic metrics for dashboard cards
+    cursor.execute("SELECT COUNT(*) AS total_users FROM users")
+    users_row = cursor.fetchone() or {"total_users": 0}
+
+    cursor.execute("SELECT COUNT(*) AS total_orders, COALESCE(SUM(total_amount), 0) AS total_revenue FROM orders")
+    orders_row = cursor.fetchone() or {"total_orders": 0, "total_revenue": 0}
+
+    # Inventory low stock (assumes inventory table with quantity & threshold columns)
+    low_stock_items = []
+    low_stock_count = 0
+    try:
+        cursor.execute(
+            """
+            SELECT id, ingredient_name, quantity, threshold
+            FROM inventory
+            WHERE quantity < threshold
+            """
+        )
+        low_stock_items = cursor.fetchall()
+        low_stock_count = len(low_stock_items)
+    except Exception as e:
+        print(f"Warning reading inventory for dashboard: {e}")
+
+    return render_template(
+        "admin/dashboard.html",
+        total_users=users_row["total_users"],
+        total_orders=orders_row["total_orders"],
+        total_revenue=orders_row["total_revenue"],
+        low_stock_items=low_stock_items,
+        low_stock_items_count=low_stock_count,
+    )
 
 @app.route("/admin/users")
 @admin_required
 def admin_users():
-    return render_template("admin/users.html")
+    cursor.execute(
+        """
+        SELECT id, name, email, role, created_at
+        FROM users
+        ORDER BY created_at DESC
+        """
+    )
+    users_list = cursor.fetchall()
+    return render_template("admin/users.html", users=users_list)
 
 @app.route("/admin/menu")
 @admin_required
@@ -956,7 +1042,20 @@ def admin_menu():
 @app.route("/admin/inventory")
 @admin_required
 def admin_inventory():
-    return render_template("admin/inventory.html")
+    items = []
+    try:
+        cursor.execute(
+            """
+            SELECT id, ingredient_name, quantity, threshold
+            FROM inventory
+            ORDER BY ingredient_name
+            """
+        )
+        items = cursor.fetchall()
+    except Exception as e:
+        print(f"Warning loading inventory: {e}")
+
+    return render_template("admin/inventory.html", inventory_items=items)
 
 @app.route("/admin/orders")
 @admin_required
@@ -968,12 +1067,26 @@ def admin_orders():
     """)
 
     orders = cursor.fetchall()
-    return jsonify(orders)
+    return render_template("admin/orders.html", orders=orders)
 
 @app.route("/admin/security-logs")
 @admin_required
 def admin_logs():
-    return render_template("admin/security_logs.html")
+    # Fetch recent login events for audit
+    cursor.execute(
+        """
+        SELECT lh.id,
+               lh.login_time,
+               lh.ip_address,
+               u.email AS user_email
+        FROM login_history lh
+        JOIN users u ON u.id = lh.user_id
+        ORDER BY lh.login_time DESC
+        LIMIT 200
+        """
+    )
+    logs = cursor.fetchall()
+    return render_template("admin/security_logs.html", logs=logs)
 
 @app.route("/admin/settings")
 @admin_required
@@ -989,10 +1102,6 @@ def admin_index():
 @app.route("/admin/logout")
 def admin_logout():
     session.pop("admin_id", None)
-    return render_template("admin/login.html")
-
-@app.route("/admin/login")
-def admin_login_page():
     return render_template("admin/login.html")
 
 @app.errorhandler(404)

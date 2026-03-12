@@ -1,193 +1,226 @@
-// =============================
-// ADMIN PANEL SCRIPT
-// =============================
+// ============================================
+// ADMIN PANEL FRONTEND SCRIPT
+// ============================================
 
 document.addEventListener("DOMContentLoaded", function () {
+    console.log("Admin panel script initialised");
 
-    console.log("Admin panel loaded");
+    // ----------------------------------------
+    // Admin Login Handling
+    // ----------------------------------------
 
+    const loginForm = document.getElementById("adminLoginForm");
+    const loginError = document.getElementById("adminLoginError");
+    const loginButton = document.getElementById("adminLoginButton");
 
-    // =============================
-    // SIDEBAR ACTIVE MENU
-    // =============================
+    if (loginForm) {
+        loginForm.addEventListener("submit", async function (event) {
+            event.preventDefault();
 
-    const links = document.querySelectorAll(".sidebar li");
+            const emailInput = document.getElementById("adminEmail");
+            const passwordInput = document.getElementById("adminPassword");
 
-    links.forEach(link => {
-        link.addEventListener("click", () => {
+            if (!emailInput || !passwordInput) {
+                return;
+            }
 
-            links.forEach(l => l.classList.remove("active"));
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
 
+            if (!email || !password) {
+                showLoginError("Please enter both email and password.");
+                return;
+            }
+
+            try {
+                if (loginButton) {
+                    loginButton.disabled = true;
+                    loginButton.textContent = "Signing in...";
+                }
+
+                const response = await fetch("/admin/login", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json().catch(() => ({}));
+
+                if (response.ok && data && data.success) {
+                    window.location.href = "/admin/dashboard";
+                    return;
+                }
+
+                const message =
+                    (data && (data.error || data.message)) ||
+                    "Login failed. Please check your credentials.";
+                showLoginError(message);
+            } catch (error) {
+                console.error("Admin login error:", error);
+                showLoginError("Unable to connect. Please try again.");
+            } finally {
+                if (loginButton) {
+                    loginButton.disabled = false;
+                    loginButton.textContent = "Sign in";
+                }
+            }
+        });
+    }
+
+    function showLoginError(message) {
+        if (!loginError) return;
+        loginError.textContent = message;
+        loginError.hidden = false;
+    }
+
+    // ----------------------------------------
+    // Sidebar Toggle (Responsive)
+    // ----------------------------------------
+
+    const sidebar = document.querySelector(".admin-sidebar");
+    const sidebarToggle = document.querySelector(".sidebar-toggle");
+
+    if (sidebar && sidebarToggle) {
+        sidebarToggle.addEventListener("click", () => {
+            sidebar.classList.toggle("is-open");
+        });
+
+        document.addEventListener("click", (event) => {
+            if (
+                window.innerWidth <= 960 &&
+                sidebar.classList.contains("is-open") &&
+                !sidebar.contains(event.target) &&
+                event.target !== sidebarToggle
+            ) {
+                sidebar.classList.remove("is-open");
+            }
+        });
+    }
+
+    // ----------------------------------------
+    // Sidebar Active Navigation
+    // ----------------------------------------
+
+    const navLinks = document.querySelectorAll(".sidebar-link");
+    const path = window.location.pathname;
+
+    navLinks.forEach((link) => {
+        const href = link.getAttribute("href") || "";
+        if (href && path.startsWith(href)) {
             link.classList.add("active");
+        }
 
+        link.addEventListener("click", () => {
+            navLinks.forEach((l) => l.classList.remove("active"));
+            link.classList.add("active");
         });
     });
 
-
-
-    // =============================
-    // SEARCH FILTER (USERS PAGE)
-    // =============================
+    // ----------------------------------------
+    // Generic Search Filters
+    // ----------------------------------------
 
     const userSearch = document.querySelector("#userSearch");
-
-    if(userSearch){
-
-        userSearch.addEventListener("keyup", function(){
-
+    if (userSearch) {
+        userSearch.addEventListener("input", function () {
             const value = this.value.toLowerCase();
-
             const rows = document.querySelectorAll("#usersTable tr");
-
-            rows.forEach(row => {
-
+            rows.forEach((row) => {
                 const text = row.innerText.toLowerCase();
-
                 row.style.display = text.includes(value) ? "" : "none";
-
             });
-
         });
-
     }
-
-
-
-    // =============================
-    // SEARCH FILTER (ORDERS)
-    // =============================
 
     const orderSearch = document.querySelector("#orderSearch");
-
-    if(orderSearch){
-
-        orderSearch.addEventListener("keyup", function(){
-
+    if (orderSearch) {
+        orderSearch.addEventListener("input", function () {
             const value = this.value.toLowerCase();
+            const table = document.querySelector("#ordersTable") || document.querySelector("#recentOrdersBody");
+            if (!table) return;
 
-            const rows = document.querySelectorAll("#ordersTable tr");
-
-            rows.forEach(row => {
-
+            const rows = table.querySelectorAll("tr");
+            rows.forEach((row) => {
+                if (row.classList.contains("placeholder-row")) return;
                 const text = row.innerText.toLowerCase();
-
                 row.style.display = text.includes(value) ? "" : "none";
-
             });
-
         });
-
     }
 
+    // ----------------------------------------
+    // Menu Item Interactions (other admin pages)
+    // ----------------------------------------
 
-
-    // =============================
-    // MENU ITEM DELETE BUTTON
-    // =============================
-
-    const deleteButtons = document.querySelectorAll(".delete-item");
-
-    deleteButtons.forEach(btn => {
-
-        btn.addEventListener("click", function(){
-
+    document.querySelectorAll(".delete-item").forEach((btn) => {
+        btn.addEventListener("click", function () {
             const card = btn.closest(".menu-card");
-
-            if(confirm("Delete this menu item?")){
-
+            if (!card) return;
+            if (confirm("Delete this menu item?")) {
                 card.remove();
-
             }
-
         });
-
     });
 
-
-
-    // =============================
-    // MENU ITEM EDIT BUTTON
-    // =============================
-
-    const editButtons = document.querySelectorAll(".edit-item");
-
-    editButtons.forEach(btn => {
-
-        btn.addEventListener("click", function(){
-
+    document.querySelectorAll(".edit-item").forEach((btn) => {
+        btn.addEventListener("click", function () {
             const card = btn.closest(".menu-card");
-
+            if (!card) return;
             const title = card.querySelector("h3");
-
+            if (!title) return;
             const newName = prompt("Edit item name", title.innerText);
-
-            if(newName){
-
+            if (newName) {
                 title.innerText = newName;
-
             }
-
         });
-
     });
 
+    // ----------------------------------------
+    // Order Status Change (other admin pages)
+    // ----------------------------------------
 
-
-    // =============================
-    // ORDER STATUS CHANGE
-    // =============================
-
-    const statusSelect = document.querySelectorAll(".status-select");
-
-    statusSelect.forEach(select => {
-
-        select.addEventListener("change", function(){
-
+    document.querySelectorAll(".status-select").forEach((select) => {
+        select.addEventListener("change", function () {
             const status = select.value;
-
             const badge = select.parentElement.querySelector(".status-badge");
-
+            if (!badge) return;
             badge.innerText = status;
-
             badge.className = "status-badge " + status.toLowerCase();
-
         });
-
     });
 
-
-
-    // =============================
-    // SETTINGS MEAL MODE
-    // =============================
+    // ----------------------------------------
+    // Settings Meal Mode (other admin pages)
+    // ----------------------------------------
 
     const mealButtons = document.querySelectorAll(".meal-mode");
-
-    mealButtons.forEach(btn => {
-
-        btn.addEventListener("click", function(){
-
-            mealButtons.forEach(b => b.classList.remove("active"));
-
+    mealButtons.forEach((btn) => {
+        btn.addEventListener("click", function () {
+            mealButtons.forEach((b) => b.classList.remove("active"));
             btn.classList.add("active");
-
         });
-
     });
 
+    // ----------------------------------------
+    // Dashboard Metric Placeholders
+    // ----------------------------------------
 
+    document.querySelectorAll("[data-metric]").forEach((el) => {
+        if (!el.textContent || !el.textContent.trim()) {
+            el.textContent = "--";
+        }
+    });
 
-    // =============================
-    // DASHBOARD CHARTS
-    // =============================
+    // ----------------------------------------
+    // Dashboard Charts (empty data placeholders)
+    // ----------------------------------------
 
-    if(document.getElementById("revenueChart")){
-
-        new Chart(
-
-            document.getElementById("revenueChart"),
-
-            {
+    if (typeof Chart !== "undefined") {
+        const revenueCanvas = document.getElementById("revenueChart");
+        if (revenueCanvas) {
+            new Chart(revenueCanvas, {
                 type: "line",
                 data: {
                     labels: [],
@@ -195,29 +228,28 @@ document.addEventListener("DOMContentLoaded", function () {
                         {
                             label: "Revenue",
                             data: [],
-                            borderColor: "#10b981",
-                            tension: 0.4
+                            borderColor: "#22c55e",
+                            borderWidth: 2,
+                            tension: 0.45,
+                            fill: false
                         }
                     ]
                 },
                 options: {
-                    responsive: true
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { grid: { color: "rgba(55, 65, 81, 0.55)" } }
+                    }
                 }
-            }
+            });
+        }
 
-        );
-
-    }
-
-
-
-    if(document.getElementById("categoryChart")){
-
-        new Chart(
-
-            document.getElementById("categoryChart"),
-
-            {
+        const categoryCanvas = document.getElementById("categoryChart");
+        if (categoryCanvas) {
+            new Chart(categoryCanvas, {
                 type: "bar",
                 data: {
                     labels: [],
@@ -225,47 +257,45 @@ document.addEventListener("DOMContentLoaded", function () {
                         {
                             label: "Categories",
                             data: [],
-                            backgroundColor: "#10b981"
+                            backgroundColor: "#22c55e",
+                            borderRadius: 6
                         }
                     ]
                 },
                 options: {
-                    responsive: true
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { grid: { color: "rgba(55, 65, 81, 0.55)" } }
+                    }
                 }
-            }
+            });
+        }
 
-        );
-
-    }
-
-
-
-    if(document.getElementById("orderChart")){
-
-        new Chart(
-
-            document.getElementById("orderChart"),
-
-            {
+        const orderCanvas = document.getElementById("orderChart");
+        if (orderCanvas) {
+            new Chart(orderCanvas, {
                 type: "doughnut",
                 data: {
                     labels: [],
                     datasets: [
                         {
                             data: [],
-                            backgroundColor: [
-                                "#f59e0b",
-                                "#3b82f6",
-                                "#10b981"
-                            ]
+                            backgroundColor: ["#f59e0b", "#3b82f6", "#22c55e"],
+                            borderWidth: 0
                         }
                     ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    cutout: "72%"
                 }
-            }
-
-        );
-
+            });
+        }
     }
-
-
 });
+
