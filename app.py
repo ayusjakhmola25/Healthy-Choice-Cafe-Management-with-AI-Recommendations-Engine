@@ -3,7 +3,7 @@ import os
 import sys
 import json
 
-# Set environment variable for UTF-8 encoding
+
 os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 import bcrypt
@@ -22,7 +22,7 @@ import random
 import time
 from datetime import datetime, timedelta
 
-# Fix for Windows Unicode encoding issues
+
 if sys.platform == 'win32':
     import codecs
     sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
@@ -53,15 +53,15 @@ def validate_password(password):
 
 # Dummy functions
 def load_food_items():
-    # Dummy food items data
+
     return [
         {'id': 1, 'name': 'Burger', 'price': 100, 'image': 'burger.jpg', 'protein': 20, 'carbs': 30, 'fats': 15, 'calories': 400},
         {'id': 2, 'name': 'Fries', 'price': 50, 'image': 'fries.jpg', 'protein': 5, 'carbs': 40, 'fats': 10, 'calories': 300},
-        # Add more items as needed
+
     ]
 
 def get_food_recommendations(item_id):
-    # Dummy recommendations based on item_id
+
     recommendations = [
         {'id': 2, 'name': 'Fries', 'price': 50, 'image': 'fries.jpg'},
         {'id': 3, 'name': 'Drink', 'price': 30, 'image': 'drink.jpg'},
@@ -69,7 +69,7 @@ def get_food_recommendations(item_id):
     return recommendations
 
 
-# MySQL Database Connection
+
 import mysql.connector
 
 db = mysql.connector.connect(
@@ -85,9 +85,9 @@ app = Flask(__name__)
 CORS(app)
 app.secret_key = 'your_secret_key_here'  # Change to a secure key in production
 
-# Flask-Mail configuration - Using SSL on port 465 for better reliability with Gmail SMTP  
-# Note: If you have 2FA enabled on your Google account, generate an App Password  
-# Go to: Google Account > Security > App Passwords  
+
+
+
 
 import smtplib  
 
@@ -105,7 +105,7 @@ except Exception as e:
       print(f"Warning during mail config:{e}")
 
 
-# Flask-Limiter configuration
+
 limiter = Limiter(get_remote_address, app=app)
 
 @app.route('/register', methods=['POST'])
@@ -213,7 +213,7 @@ def login():
 
     session["user_id"] = user["id"]
 
-    # login history insert
+    
     ip_address = request.remote_addr
 
     cursor.execute("""
@@ -293,7 +293,7 @@ def send_login_otp():
     cursor.execute(query, (user_id, otp, expiry_time))
     db.commit()
 
-    # Send OTP via email
+    
     msg = Message(
         subject="Healthy Cafe Login Verification Code",
         sender=app.config['MAIL_USERNAME'],
