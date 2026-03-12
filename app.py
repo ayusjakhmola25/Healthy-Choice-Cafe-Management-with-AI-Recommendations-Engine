@@ -108,6 +108,9 @@ except Exception as e:
 
 limiter = Limiter(get_remote_address, app=app)
 
+# Global storage for guest orders (non-logged-in users)
+guest_orders = []
+
 @app.route('/register', methods=['POST'])
 def register():
     data = request.get_json()

@@ -1874,17 +1874,71 @@ async function loadUserOrders() {
     }
 }
 
-// Function to load orders for orders page
 async function loadOrders() {
     const user = JSON.parse(localStorage.getItem("user"));
+    if (!user || !user.id) {
+        console.log("User not logged in, loading local orders only");
+        loadOrdersPage();
+        return;
+    }
 
-    const response = await fetch(
-        "http://127.0.0.1:3000/user-orders/" + user.id
-    );
+    try {
+        // Fetch DB orders
+        const dbResponse = await fetch(`http://127.0.0.1:3000/user-orders/${user.id}`);
+        const dbOrders = dbResponse.ok ? await dbResponse.json() : [];
 
-    const orders = await response.json();
+        // Fetch guest orders  
+        const guestResponse = await fetch('http://127.0.0.1:3000/get-guest-orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                mobile: user.mobile || '', 
+                email: user.email || '' 
+            })
+        });
+        const guestData = guestResponse.ok ? await guestResponse.json() : { orders: [] };
+        const guestOrders = guestData.orders || [];
 
-    console.log(orders);
+        // Merge: DB first (server orders), then guest/local
+        const allOrders = [
+            ...dbOrders.map(o => ({
+                id: `#DB${o.id}`,
+                date: o.created_at,
+                status: o.order_status || 'completed', 
+                paymentMethod: 'Online',
+                items: [], // Would need separate API call
+                metrics: { protein: 0, carbs: 0, fats: 0, calories: 0 },
+                total: parseFloat(o.total_amount || 0)
+            })),
+            ...guestOrders.map(o => ({
+                id: `#G${o.id}`,
+                date: o.order_date,
+                status: 'completed',
+                paymentMethod: o.payment_method,
+                items: [],
+                metrics: { protein: 0, carbs: 0, fats: 0, calories: 0 },
+                total: parseFloat(o.total_amount)
+            }))
+        ];
+
+        // Load localStorage orders too
+        const localOrders = JSON.parse(localStorage.getItem('orders') || '[]');
+        allOrders.push(...localOrders);
+
+        // Sort by date desc
+        allOrders.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+        // Update localStorage
+        localStorage.setItem('orders', JSON.stringify(allOrders));
+
+        // Render
+        loadOrdersPage();
+
+    } catch (error) {
+        console.error("Error loading orders:", error);
+        // Fallback to local orders
+        loadOrdersPage();
+    }
 }
 
 
