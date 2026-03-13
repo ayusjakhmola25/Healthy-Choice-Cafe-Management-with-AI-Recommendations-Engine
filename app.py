@@ -237,8 +237,7 @@ def admin_login():
     POST - authenticate admin and establish session (JSON API)
     """
     if request.method == 'GET':
-        if "admin_id" in session:
-            return render_template("admin/dashboard.html")
+        # Always show the login page, even if admin is already logged in
         return render_template("admin/login.html")
 
     data = request.get_json() or {}
