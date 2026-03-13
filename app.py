@@ -157,6 +157,16 @@ except Exception as e:
 
 limiter = Limiter(get_remote_address, app=app)
 
+def admin_required(f):
+    """Decorator to check if admin is logged in"""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if "admin_id" not in session:
+            return render_template("admin/login.html")
+        return f(*args, **kwargs)
+    return decorated_function
+
 @app.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
@@ -1289,16 +1299,6 @@ def cafeteria():
     items = load_food_items()
     user_name = session.get('user_name', 'Guest')
     return render_template('cafeteria.html', items=items, user_name=user_name)
-
-def admin_required(f):
-    """Decorator to check if admin is logged in"""
-    from functools import wraps
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if "admin_id" not in session:
-            return render_template("admin/login.html")
-        return f(*args, **kwargs)
-    return decorated_function
 
 # Admin Routes
 @app.route("/admin/dashboard")
