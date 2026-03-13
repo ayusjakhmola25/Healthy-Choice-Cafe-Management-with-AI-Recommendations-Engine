@@ -76,11 +76,14 @@ import mysql.connector
 db = mysql.connector.connect(
     host="localhost",
     user="root",
-    password="ayush123", 
+    password="ayush123",
     database="healthy_cafe_db"
 )
 
 cursor = db.cursor(dictionary=True)
+
+# In‑memory guest order storage (used for quick profile insights)
+guest_orders = []
 
 app = Flask(__name__)
 CORS(app)
@@ -737,7 +740,7 @@ def save_order():
     if not name or not mobile or not email or not order_data or not total_amount or not payment_method:
         return jsonify({'error': 'All fields are required'}), 400
 
-    # Save to guest_orders list
+    # Save to guest_orders list (for quick profile analytics)
     new_order = {
         'id': len(guest_orders) + 1,
         'user_id': user_id,
@@ -751,6 +754,21 @@ def save_order():
         'order_date': datetime.now().isoformat()
     }
     guest_orders.append(new_order)
+
+    # Also persist summary in main orders table when a logged-in user is available
+    try:
+        if user_id:
+            cursor.execute(
+                """
+                INSERT INTO orders (user_id,total_amount,order_status,created_at)
+                VALUES (%s,%s,%s,NOW())
+                """,
+                (user_id, float(total_amount), "confirmed"),
+            )
+            db.commit()
+    except Exception as e:
+        # Do not break the flow if DB insert fails; guest_orders still has the record
+        print(f"Warning persisting save_order to DB: {e}")
 
     print(f"Guest order saved: {name}, {mobile}, {email}, {total_amount}, diet: {diet_preference}, user_id: {user_id}")
 
@@ -1051,6 +1069,100 @@ def admin_users():
 @admin_required
 def admin_menu():
     return render_template("admin/menu.html")
+
+
+@app.route("/admin/menu-items", methods=["GET", "POST"])
+@admin_required
+def admin_menu_items():
+    """
+    Admin-facing API for listing and creating menu items.
+    Uses the same underlying `menu_items` table as the user menu.
+    """
+    if request.method == "GET":
+        cursor.execute("SELECT * FROM menu_items ORDER BY id DESC")
+        items = cursor.fetchall()
+        return jsonify(items)
+
+    # POST – create a new item
+    data = request.get_json() or {}
+    name = data.get("name")
+    price = data.get("price")
+    image_url = data.get("image_url") or ""
+
+    if not name or price is None:
+        return jsonify({"error": "Name and price are required"}), 400
+
+    try:
+        cursor.execute(
+            """
+            INSERT INTO menu_items (name, price, image_url)
+            VALUES (%s,%s,%s)
+            """,
+            (name, float(price), image_url),
+        )
+        db.commit()
+        new_id = cursor.lastrowid
+        cursor.execute("SELECT * FROM menu_items WHERE id=%s", (new_id,))
+        item = cursor.fetchone()
+        return jsonify({"success": True, "item": item})
+    except Exception as e:
+        print(f"Error creating menu item: {e}")
+        db.rollback()
+        return jsonify({"error": "Failed to create menu item"}), 500
+
+
+@app.route("/admin/menu-items/<int:item_id>", methods=["PUT", "DELETE"])
+@admin_required
+def admin_update_menu_item(item_id):
+    """
+    Update or delete a menu item.
+    """
+    if request.method == "DELETE":
+        try:
+            cursor.execute("DELETE FROM menu_items WHERE id=%s", (item_id,))
+            db.commit()
+            return jsonify({"success": True})
+        except Exception as e:
+            print(f"Error deleting menu item {item_id}: {e}")
+            db.rollback()
+            return jsonify({"error": "Failed to delete menu item"}), 500
+
+    # PUT – update basic fields
+    data = request.get_json() or {}
+    name = data.get("name")
+    price = data.get("price")
+    image_url = data.get("image_url")
+
+    fields = []
+    values = []
+    if name is not None:
+        fields.append("name=%s")
+        values.append(name)
+    if price is not None:
+        fields.append("price=%s")
+        values.append(float(price))
+    if image_url is not None:
+        fields.append("image_url=%s")
+        values.append(image_url)
+
+    if not fields:
+        return jsonify({"error": "No fields to update"}), 400
+
+    values.append(item_id)
+
+    try:
+        cursor.execute(
+            f"UPDATE menu_items SET {', '.join(fields)} WHERE id=%s",
+            tuple(values),
+        )
+        db.commit()
+        cursor.execute("SELECT * FROM menu_items WHERE id=%s", (item_id,))
+        item = cursor.fetchone()
+        return jsonify({"success": True, "item": item})
+    except Exception as e:
+        print(f"Error updating menu item {item_id}: {e}")
+        db.rollback()
+        return jsonify({"error": "Failed to update menu item"}), 500
 
 @app.route("/admin/inventory")
 @admin_required

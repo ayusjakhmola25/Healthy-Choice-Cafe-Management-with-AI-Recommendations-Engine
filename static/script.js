@@ -687,93 +687,61 @@ function createNutritionChart(canvasId, protein, carbs, fats, calories) {
     });
 }
 
-// Function to load food items from database menu-items API (primary) with fallback
-async function loadFoodItems(){
+// Function to load food items strictly from database menu-items API
+async function loadFoodItems() {
+    const menuGrid = document.querySelector(".menu-grid");
+    if (!menuGrid) return;
+
+    menuGrid.innerHTML = '<p style="padding:1rem;color:#6b7280;">Loading menu items…</p>';
+
     try {
-        // Try to fetch from menu-items API first (database)
-        const response = await fetch("http://127.0.0.1:3000/menu-items")
-        if (response.ok) {
-            const items = await response.json()
-            const menuGrid = document.querySelector(".menu-grid")
-            if (!menuGrid) return;
-            menuGrid.innerHTML = ""
-            items.forEach(item => {
-                menuGrid.innerHTML += `
-                <div class="menu-item menu-card">
-                    <div class="image-block">
-                        <img src="${item.image_url}" class="item-image">
-                    </div>
-                    <div class="item-details">
-                        <h3 class="item-title">${item.name}</h3>
-                        <p class="item-price">₹${item.price}</p>
-                        <button class="add-to-cart-btn" onclick="addToCart(${item.id},'${item.name}',${item.price})">Add to Cart</button>
-                    </div>
-                </div>
-                `
-            })
+        const response = await fetch("http://127.0.0.1:3000/menu-items");
+        if (!response.ok) {
+            throw new Error("Failed to load menu items");
+        }
+
+        let items = await response.json();
+        if (!items || items.length === 0) {
+            menuGrid.innerHTML = '<p style="padding:1rem;color:#6b7280;">No items available.</p>';
             return;
         }
-    } catch (_) { /* ignore and fall through to fallback */ }
-    
-    // Fallback: Try food-items API
-    try {
-        let foodItems = [];
-        const response = await fetch('http://127.0.0.1:3000/food-items');
-        if (response.ok) {
-            foodItems = await response.json();
-            try { localStorage.setItem('cachedFoodItems', JSON.stringify(foodItems)); } catch (_) {}
-        }
-        
-        // CSV fallback
-        if (!foodItems || foodItems.length === 0) {
-            const csvItems = await loadItemsFromCsvPaths(['FoodItem_export_clean.csv', 'fooditem_export.csv','item_export.csv']);
-            if (csvItems && csvItems.length) foodItems = csvItems;
+
+        // Filter based on preference directly on DB-backed items (if category exists)
+        const dietPreference = localStorage.getItem("dietPreference");
+        if (dietPreference === "diet") {
+            items = items.filter(
+                (item) => (item.category || "").toLowerCase() === "diet"
+            );
+        } else if (dietPreference === "non-diet") {
+            items = items.filter(
+                (item) => (item.category || "").toLowerCase() === "non-diet"
+            );
         }
 
-        // Try cached
-        if (!foodItems || foodItems.length === 0) {
-            const cached = JSON.parse(localStorage.getItem('cachedFoodItems') || '[]');
-            if (cached.length) foodItems = cached;
-        }
-
-        // Built-in sample to ensure page never looks empty
-        if (!foodItems || foodItems.length === 0) {
-            foodItems = [
-                { id:'sample1', name:'Sprouts Chaat', price:110, image_url:'images/pizza1.jpeg', protein:18, carbs:28, fats:6, calories:230, category:'diet', description:'Light and protein rich.' },
-                { id:'sample2', name:'Paneer Tikka', price:280, image_url:'images/indian.jpeg', protein:24, carbs:45, fats:28, calories:550, category:'diet', description:'Creamy classic.' },
-                { id:'sample3', name:'Aloo Tikki Burger', price:80, image_url:'images/burger1.jpeg', protein:10, carbs:52, fats:20, calories:430, category:'non-diet', description:'Tasty treat.' }
-            ];
+        if (!items.length) {
+            menuGrid.innerHTML =
+                '<p style="padding:1rem;color:#6b7280;">No items match your current filter.</p>';
+            return;
         }
 
         // Ensure image URLs are absolute paths
-        foodItems.forEach(item => {
-            if (!item.image_url.startsWith('/')) {
-                item.image_url = '/static/' + item.image_url;
+        items.forEach((item) => {
+            if (item.image_url && !item.image_url.startsWith("/")) {
+                item.image_url = "/static/" + item.image_url;
             }
         });
 
-        // Filter based on preference
-        const dietPreference = localStorage.getItem('dietPreference');
-        if (dietPreference === 'diet') {
-            foodItems = foodItems.filter(item => (item.category||'').toLowerCase() === 'diet');
-        } else if (dietPreference === 'non-diet') {
-            foodItems = foodItems.filter(item => (item.category||'').toLowerCase() === 'non-diet');
-        }
+        menuGrid.innerHTML = "";
 
-        const menuGrid = document.querySelector('.menu-grid');
-        if (!menuGrid) return;
-        menuGrid.innerHTML = '';
-
-        // Render cards
-        foodItems.forEach((item, index) => {
-            const menuItem = document.createElement('div');
-            menuItem.className = 'menu-item menu-card';
+        items.forEach((item, index) => {
+            const menuItem = document.createElement("div");
+            menuItem.className = "menu-item menu-card";
 
             const chartId = `nutrition-chart-${index}`;
 
             menuItem.innerHTML = `
                 <div class="image-block">
-                    <img src="${item.image_url}" alt="${item.name}" class="item-image">
+                    <img src="${item.image_url || "/static/images/default-food.jpg"}" alt="${item.name}" class="item-image">
                 </div>
                 <div class="item-details">
                     <div class="title-rating">
@@ -782,7 +750,7 @@ async function loadFoodItems(){
                             <span class="star-icon">&#9733;</span> 4.5
                         </div>
                     </div>
-                    <p class="item-description">${item.description || ''}</p>
+                    <p class="item-description">${item.description || ""}</p>
                     <div class="nutrition-info">
                         <div class="nutrition-values">
                             <span class="nutrition-item">Protein: ${item.protein || 0}g</span>
@@ -800,19 +768,27 @@ async function loadFoodItems(){
                         <span class="quantity-display" id="quantity-${item.id}">1</span>
                         <button class="quantity-btn" onclick="increaseQuantity('${item.id}')">+</button>
                     </div>
-                    <button class="add-to-cart-btn" onclick="showAddToCartConfirmation('${item.id}', '${item.name}', '${item.price}', '${item.image_url}', '${item.protein}', '${item.carbs}', '${item.fats}', '${item.calories}')">Add to Cart</button>
+                    <button class="add-to-cart-btn" onclick="showAddToCartConfirmation('${item.id}', '${item.name}', '${item.price}', '${item.image_url || "/static/images/default-food.jpg"}', '${item.protein || 0}', '${item.carbs || 0}', '${item.fats || 0}', '${item.calories || 0}')">Add to Cart</button>
                 </div>
             `;
 
             menuGrid.appendChild(menuItem);
             setTimeout(() => {
-                createNutritionChart(chartId, parseInt(item.protein||0), parseInt(item.carbs||0), parseInt(item.fats||0), parseInt(item.calories||0));
+                createNutritionChart(
+                    chartId,
+                    parseInt(item.protein || 0),
+                    parseInt(item.carbs || 0),
+                    parseInt(item.fats || 0),
+                    parseInt(item.calories || 0)
+                );
             }, 50);
         });
 
         updateCartCount();
     } catch (error) {
-        console.error('Error loading food items (handled gracefully):', error);
+        console.error("Error loading food items from database:", error);
+        menuGrid.innerHTML =
+            '<p style="padding:1rem;color:#b91c1c;">Unable to load menu items from the server.</p>';
     }
 }
 
@@ -1323,14 +1299,14 @@ async function loadOrdersPage() {
 
     if (!list) return;
 
-    // Load food items for add to cart functionality
+    // Load current DB-backed menu items for "add to cart again" functionality
     try {
-        const response = await fetch('http://127.0.0.1:3000/food-items');
+        const response = await fetch("http://127.0.0.1:3000/menu-items");
         if (response.ok) {
             globalFoodItems = await response.json();
         }
     } catch (e) {
-        console.error('Error loading food items for orders:', e);
+        console.error("Error loading menu items for orders:", e);
     }
 
     list.innerHTML = orders.map((o, index) => `
@@ -1527,30 +1503,20 @@ async function loadAIRecommendations() {
     cardsContainer.style.display = 'none';
 
     try {
-        // Backend first (original behavior)
+        // Use the same DB-backed menu items as the main menu
         let items = [];
         try {
-            const res = await fetch('http://127.0.0.1:3000/food-items');
+            const res = await fetch("http://127.0.0.1:3000/menu-items");
             if (res.ok) {
                 items = await res.json();
-                try { localStorage.setItem('cachedFoodItems', JSON.stringify(items)); } catch (_) {}
             }
-        } catch (_) { /* ignore */ }
-        // CSV fallback
-        if (!items || items.length === 0) {
-            items = await loadItemsFromCsvPaths(['FoodItem_export_clean.csv', 'fooditem_export.csv','item_export.csv']);
+        } catch (_) {
+            /* ignore */
         }
+
         if (!items || items.length === 0) {
-            const cached = JSON.parse(localStorage.getItem('cachedFoodItems') || '[]');
-            if (cached.length) items = cached;
-        }
-        if (!items || items.length === 0) {
-            // built-in minimal sample so UI never looks empty
-            items = [
-                { id:'sample1', name:'Sprouts Chaat', price:110, image_url:'images/pizza1.jpeg', protein:18, carbs:28, fats:6, calories:230, category:'diet', description:'Light and protein rich.' },
-                { id:'sample2', name:'Paneer Tikka', price:280, image_url:'images/indian.jpeg', protein:24, carbs:45, fats:28, calories:550, category:'diet', description:'Creamy classic.' },
-                { id:'sample3', name:'Aloo Tikki Burger', price:80, image_url:'images/burger1.jpeg', protein:10, carbs:52, fats:20, calories:430, category:'non-diet', description:'Tasty treat.' }
-            ];
+            loading.textContent = "No menu items available yet. Please check back later.";
+            return;
         }
         const pref = localStorage.getItem('dietPreference');
         tag.textContent = pref === 'diet' ? 'Diet picks' : (pref === 'non-diet' ? 'Treat yourself' : 'Balanced');
@@ -1566,9 +1532,9 @@ async function loadAIRecommendations() {
 
         const top = items.slice(0, 5);
         // Ensure image URLs are absolute paths
-        top.forEach(it => {
-            if (!it.image_url.startsWith('/')) {
-                it.image_url = '/static/' + it.image_url;
+        top.forEach((it) => {
+            if (it.image_url && !it.image_url.startsWith("/")) {
+                it.image_url = "/static/" + it.image_url;
             }
         });
         cardsContainer.innerHTML = top.map(it => `

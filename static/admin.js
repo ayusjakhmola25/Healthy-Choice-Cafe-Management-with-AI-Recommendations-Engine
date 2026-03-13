@@ -155,28 +155,181 @@ document.addEventListener("DOMContentLoaded", function () {
     // Menu Item Interactions (other admin pages)
     // ----------------------------------------
 
-    document.querySelectorAll(".delete-item").forEach((btn) => {
-        btn.addEventListener("click", function () {
-            const card = btn.closest(".menu-card");
-            if (!card) return;
-            if (confirm("Delete this menu item?")) {
-                card.remove();
-            }
-        });
-    });
+    // Menu item management on /admin/menu (backed by database)
+    if (window.location.pathname.startsWith("/admin/menu")) {
+        const menuGrid = document.getElementById("menuGrid");
+        const addButton = document.querySelector(".menu-add-button");
 
-    document.querySelectorAll(".edit-item").forEach((btn) => {
-        btn.addEventListener("click", function () {
-            const card = btn.closest(".menu-card");
-            if (!card) return;
-            const title = card.querySelector("h3");
-            if (!title) return;
-            const newName = prompt("Edit item name", title.innerText);
-            if (newName) {
-                title.innerText = newName;
+        async function fetchMenuItems() {
+            if (!menuGrid) return;
+            menuGrid.innerHTML = '<p style="padding:1rem;color:#6b7280;">Loading menu items…</p>';
+            try {
+                const response = await fetch("/menu-items");
+                if (!response.ok) {
+                    throw new Error("Failed to load menu items");
+                }
+                const items = await response.json();
+                if (!items || items.length === 0) {
+                    menuGrid.innerHTML = '<p style="padding:1rem;color:#6b7280;">No menu items found. Use “Add Item” to create one.</p>';
+                    return;
+                }
+
+                menuGrid.innerHTML = "";
+                items.forEach((item) => {
+                    const card = document.createElement("article");
+                    card.className = "menu-card";
+                    card.dataset.id = item.id;
+                    card.innerHTML = `
+                        <header class="menu-card-header">
+                            <h2 class="menu-card-title">${item.name}</h2>
+                            <span class="menu-card-price">₹${item.price}</span>
+                        </header>
+                        <p class="menu-card-description">
+                            ${item.description || "No description"}
+                        </p>
+                        <div class="menu-card-tags">
+                            <span class="tag-pill">${item.category || "uncategorized"}</span>
+                        </div>
+                        <footer class="menu-card-footer">
+                            <button type="button" class="btn btn-text edit-item">Edit</button>
+                            <button type="button" class="btn btn-text delete-item">Delete</button>
+                        </footer>
+                    `;
+                    menuGrid.appendChild(card);
+                });
+
+                attachMenuCardHandlers();
+            } catch (error) {
+                console.error("Error loading admin menu items:", error);
+                menuGrid.innerHTML = '<p style="padding:1rem;color:#b91c1c;">Failed to load menu items from the database.</p>';
             }
-        });
-    });
+        }
+
+        function attachMenuCardHandlers() {
+            document.querySelectorAll(".delete-item").forEach((btn) => {
+                btn.onclick = async function () {
+                    const card = btn.closest(".menu-card");
+                    if (!card) return;
+                    const id = card.dataset.id;
+                    if (!id) return;
+                    if (!confirm("Delete this menu item?")) return;
+                    try {
+                        const resp = await fetch(`/admin/menu-items/${id}`, {
+                            method: "DELETE",
+                        });
+                        if (!resp.ok) {
+                            const data = await resp.json().catch(() => ({}));
+                            alert(data.error || "Failed to delete item");
+                            return;
+                        }
+                        card.remove();
+                        if (!menuGrid.children.length) {
+                            menuGrid.innerHTML = '<p style="padding:1rem;color:#6b7280;">No menu items found. Use “Add Item” to create one.</p>';
+                        }
+                    } catch (e) {
+                        console.error("Delete menu item error:", e);
+                        alert("Unable to delete item. Please try again.");
+                    }
+                };
+            });
+
+            document.querySelectorAll(".edit-item").forEach((btn) => {
+                btn.onclick = async function () {
+                    const card = btn.closest(".menu-card");
+                    if (!card) return;
+                    const id = card.dataset.id;
+                    const titleEl = card.querySelector(".menu-card-title");
+                    const priceEl = card.querySelector(".menu-card-price");
+                    if (!titleEl || !priceEl) return;
+
+                    const currentName = titleEl.innerText.trim();
+                    const currentPrice = parseFloat(
+                        (priceEl.innerText.replace(/[^\d.]/g, "") || "0")
+                    );
+
+                    const newName = prompt("Edit item name", currentName) ?? currentName;
+                    const newPriceStr = prompt(
+                        "Edit item price (₹)",
+                        isNaN(currentPrice) ? "" : currentPrice.toString()
+                    );
+                    const newPrice =
+                        newPriceStr !== null && newPriceStr.trim() !== ""
+                            ? parseFloat(newPriceStr)
+                            : currentPrice;
+
+                    if (!newName || isNaN(newPrice)) {
+                        alert("Name and price are required.");
+                        return;
+                    }
+
+                    try {
+                        const resp = await fetch(`/admin/menu-items/${id}`, {
+                            method: "PUT",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify({
+                                name: newName,
+                                price: newPrice,
+                            }),
+                        });
+                        const data = await resp.json().catch(() => ({}));
+                        if (!resp.ok || !data.success) {
+                            alert(data.error || "Failed to update item");
+                            return;
+                        }
+
+                        const item = data.item || {};
+                        titleEl.innerText = item.name || newName;
+                        priceEl.innerText = `₹${item.price ?? newPrice}`;
+                    } catch (e) {
+                        console.error("Update menu item error:", e);
+                        alert("Unable to update item. Please try again.");
+                    }
+                };
+            });
+        }
+
+        if (addButton) {
+            addButton.addEventListener("click", async () => {
+                const name = prompt("Enter item name");
+                if (!name) return;
+                const priceStr = prompt("Enter price (₹)");
+                if (!priceStr || !priceStr.trim()) return;
+                const price = parseFloat(priceStr);
+                if (isNaN(price)) {
+                    alert("Invalid price.");
+                    return;
+                }
+
+                try {
+                    const resp = await fetch("/admin/menu-items", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            name,
+                            price,
+                        }),
+                    });
+                    const data = await resp.json().catch(() => ({}));
+                    if (!resp.ok || !data.success) {
+                        alert(data.error || "Failed to create item");
+                        return;
+                    }
+                    // Reload list to include new item
+                    await fetchMenuItems();
+                } catch (e) {
+                    console.error("Create menu item error:", e);
+                    alert("Unable to create item. Please try again.");
+                }
+            });
+        }
+
+        // Initial load
+        fetchMenuItems();
+    }
 
     // ----------------------------------------
     // Order Status Change (other admin pages)
