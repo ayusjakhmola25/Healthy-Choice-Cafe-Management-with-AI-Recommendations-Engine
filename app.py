@@ -54,12 +54,26 @@ def validate_password(password):
 
 # Dummy functions
 def load_food_items():
-
-    return [
-        {'id': 1, 'name': 'Burger', 'price': 100, 'image': 'burger.jpg', 'protein': 20, 'carbs': 30, 'fats': 15, 'calories': 400},
-        {'id': 2, 'name': 'Fries', 'price': 50, 'image': 'fries.jpg', 'protein': 5, 'carbs': 40, 'fats': 10, 'calories': 300},
-
-    ]
+    """Load active food items from DB filtered by current meal_mode"""
+    cursor.execute("SELECT setting_value FROM system_settings WHERE setting_key='meal_mode'")
+    result = cursor.fetchone()
+    meal_mode = result['setting_value'] if result else 'all'
+    
+    query = """
+        SELECT * FROM menu_items 
+        WHERE is_active = 1 
+        AND (category = %s OR %s = 'all' OR category IS NULL)
+        ORDER BY id DESC
+    """
+    cursor.execute(query, (meal_mode, meal_mode))
+    items = cursor.fetchall()
+    
+    # Ensure image_url is full path if static/images
+    for item in items:
+        if item['image_url'] and '/static/images/' not in item['image_url']:
+            item['image_url'] = '/static/images/' + item['image_url'].split('/')[-1]
+    
+    return items
 
 def get_food_recommendations(item_id):
 
@@ -81,6 +95,30 @@ db = mysql.connector.connect(
 )
 
 cursor = db.cursor(dictionary=True)
+
+# Idempotent schema initialization
+def init_schema():
+    cursor.execute("SHOW COLUMNS FROM menu_items LIKE 'is_active'")
+    if not cursor.fetchone():
+        cursor.execute("ALTER TABLE menu_items ADD COLUMN is_active TINYINT(1) DEFAULT 1")
+    
+    cursor.execute("SHOW COLUMNS FROM menu_items LIKE 'category'")
+    if not cursor.fetchone():
+        cursor.execute("ALTER TABLE menu_items ADD COLUMN category VARCHAR(20) DEFAULT 'all'")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS system_settings (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            setting_key VARCHAR(50) UNIQUE,
+            setting_value VARCHAR(50),
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+    """)
+    
+    cursor.execute("INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('meal_mode', 'all')")
+    db.commit()
+
+init_schema()
 
 # In‑memory guest order storage (used for quick profile insights)
 guest_orders = []
@@ -1079,6 +1117,7 @@ def admin_menu_items():
     Uses the same underlying `menu_items` table as the user menu.
     """
     if request.method == "GET":
+        # Admin sees all items (including inactive)
         cursor.execute("SELECT * FROM menu_items ORDER BY id DESC")
         items = cursor.fetchall()
         return jsonify(items)
@@ -1087,7 +1126,9 @@ def admin_menu_items():
     data = request.get_json() or {}
     name = data.get("name")
     price = data.get("price")
-    image_url = data.get("image_url") or ""
+    image_url = data.get("image_url", "")
+    category = data.get("category", "all")
+    is_active = data.get("is_active", 1)
 
     if not name or price is None:
         return jsonify({"error": "Name and price are required"}), 400
@@ -1095,10 +1136,10 @@ def admin_menu_items():
     try:
         cursor.execute(
             """
-            INSERT INTO menu_items (name, price, image_url)
-            VALUES (%s,%s,%s)
+            INSERT INTO menu_items (name, price, image_url, category, is_active)
+            VALUES (%s,%s,%s,%s,%s)
             """,
-            (name, float(price), image_url),
+            (name, float(price), image_url, category, int(is_active)),
         )
         db.commit()
         new_id = cursor.lastrowid
@@ -1127,11 +1168,13 @@ def admin_update_menu_item(item_id):
             db.rollback()
             return jsonify({"error": "Failed to delete menu item"}), 500
 
-    # PUT – update basic fields
+    # PUT – update fields
     data = request.get_json() or {}
     name = data.get("name")
     price = data.get("price")
     image_url = data.get("image_url")
+    category = data.get("category")
+    is_active = data.get("is_active")
 
     fields = []
     values = []
@@ -1144,6 +1187,12 @@ def admin_update_menu_item(item_id):
     if image_url is not None:
         fields.append("image_url=%s")
         values.append(image_url)
+    if category is not None:
+        fields.append("category=%s")
+        values.append(category)
+    if is_active is not None:
+        fields.append("is_active=%s")
+        values.append(int(is_active))
 
     if not fields:
         return jsonify({"error": "No fields to update"}), 400
@@ -1163,6 +1212,33 @@ def admin_update_menu_item(item_id):
         print(f"Error updating menu item {item_id}: {e}")
         db.rollback()
         return jsonify({"error": "Failed to update menu item"}), 500
+
+
+@app.route("/admin/menu-items/<int:item_id>/toggle", methods=["PATCH"])
+@admin_required
+def admin_toggle_menu_item(item_id):
+    """Toggle is_active status"""
+    cursor.execute("SELECT is_active FROM menu_items WHERE id=%s", (item_id,))
+    item = cursor.fetchone()
+    if not item:
+        return jsonify({"error": "Item not found"}), 404
+    
+    new_status = 0 if item['is_active'] else 1
+    
+    cursor.execute(
+        "UPDATE menu_items SET is_active=%s WHERE id=%s",
+        (new_status, item_id)
+    )
+    db.commit()
+    
+    cursor.execute("SELECT * FROM menu_items WHERE id=%s", (item_id,))
+    updated_item = cursor.fetchone()
+    
+    return jsonify({
+        "success": True, 
+        "item": updated_item,
+        "message": f"Item {'deactivated' if new_status == 0 else 'activated'}"
+    })
 
 @app.route("/admin/inventory")
 @admin_required
@@ -1235,9 +1311,29 @@ def admin_logs():
     logs = cursor.fetchall()
     return render_template("admin/security_logs.html", logs=logs)
 
-@app.route("/admin/settings")
+@app.route("/admin/settings", methods=["GET", "POST"])
 @admin_required
 def admin_settings():
+    if request.method == "GET":
+        cursor.execute("SELECT setting_value FROM system_settings WHERE setting_key='meal_mode'")
+        result = cursor.fetchone()
+        meal_mode = result['setting_value'] if result else 'all'
+        return jsonify({"meal_mode": meal_mode})
+    
+    if request.method == "POST":
+        data = request.get_json() or {}
+        meal_mode = data.get("meal_mode")
+        if not meal_mode or meal_mode not in ['all', 'breakfast', 'lunch', 'dinner']:
+            return jsonify({"error": "Valid meal_mode required"}), 400
+        
+        cursor.execute("""
+            INSERT INTO system_settings (setting_key, setting_value) 
+            VALUES ('meal_mode', %s) 
+            ON DUPLICATE KEY UPDATE setting_value=%s
+        """, (meal_mode, meal_mode))
+        db.commit()
+        return jsonify({"success": True, "meal_mode": meal_mode})
+    
     return render_template("admin/settings.html")
 
 @app.route("/admin")

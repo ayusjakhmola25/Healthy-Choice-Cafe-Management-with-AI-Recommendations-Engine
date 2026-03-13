@@ -188,11 +188,15 @@ document.addEventListener("DOMContentLoaded", function () {
                             ${item.description || "No description"}
                         </p>
                         <div class="menu-card-tags">
-                            <span class="tag-pill">${item.category || "uncategorized"}</span>
+                            <span class="tag-pill">${item.category || "all"}</span>
+                            <span class="status-badge ${item.is_active ? 'active' : 'inactive'}">
+                                ${item.is_active ? 'Active' : 'Inactive'}
+                            </span>
                         </div>
                         <footer class="menu-card-footer">
                             <button type="button" class="btn btn-text edit-item">Edit</button>
                             <button type="button" class="btn btn-text delete-item">Delete</button>
+                            <button type="button" class="btn btn-text toggle-item">Toggle Active</button>
                         </footer>
                     `;
                     menuGrid.appendChild(card);
@@ -238,53 +242,90 @@ document.addEventListener("DOMContentLoaded", function () {
                     const card = btn.closest(".menu-card");
                     if (!card) return;
                     const id = card.dataset.id;
+                    if (!id) return;
+                    
+                    // Get current data
                     const titleEl = card.querySelector(".menu-card-title");
                     const priceEl = card.querySelector(".menu-card-price");
-                    if (!titleEl || !priceEl) return;
+                    const tagEl = card.querySelector(".tag-pill");
+                    const statusEl = card.querySelector(".status-badge");
+                    
+                    const currentName = titleEl ? titleEl.innerText.trim() : '';
+                    const currentPrice = priceEl ? parseFloat(priceEl.innerText.replace(/[^\d.]/g, '')) : 0;
+                    const currentCategory = tagEl ? tagEl.innerText.trim() : 'all';
+                    const currentActive = statusEl && statusEl.classList.contains('active');
 
-                    const currentName = titleEl.innerText.trim();
-                    const currentPrice = parseFloat(
-                        (priceEl.innerText.replace(/[^\d.]/g, "") || "0")
-                    );
+                    const newName = prompt("Item Name", currentName);
+                    const newPriceStr = prompt("Price (₹)", currentPrice);
+                    const categories = ['all', 'breakfast', 'lunch', 'dinner'];
+                    const newCategory = prompt("Category", currentCategory, categories.join(', '));
+                    const newActive = confirm("Active?") ? 1 : 0;
 
-                    const newName = prompt("Edit item name", currentName) ?? currentName;
-                    const newPriceStr = prompt(
-                        "Edit item price (₹)",
-                        isNaN(currentPrice) ? "" : currentPrice.toString()
-                    );
-                    const newPrice =
-                        newPriceStr !== null && newPriceStr.trim() !== ""
-                            ? parseFloat(newPriceStr)
-                            : currentPrice;
+                    if (!newName || isNaN(parseFloat(newPriceStr))) {
+                        alert("Name and price required");
+                        return;
+                    }
 
-                    if (!newName || isNaN(newPrice)) {
-                        alert("Name and price are required.");
+                    const newPrice = parseFloat(newPriceStr);
+                    if (!categories.includes(newCategory)) {
+                        alert("Invalid category");
                         return;
                     }
 
                     try {
                         const resp = await fetch(`/admin/menu-items/${id}`, {
                             method: "PUT",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
+                            headers: {"Content-Type": "application/json"},
                             body: JSON.stringify({
                                 name: newName,
                                 price: newPrice,
+                                category: newCategory,
+                                is_active: newActive
                             }),
                         });
-                        const data = await resp.json().catch(() => ({}));
+                        const data = await resp.json();
                         if (!resp.ok || !data.success) {
-                            alert(data.error || "Failed to update item");
+                            alert(data.error || "Update failed");
                             return;
                         }
 
-                        const item = data.item || {};
-                        titleEl.innerText = item.name || newName;
-                        priceEl.innerText = `₹${item.price ?? newPrice}`;
+                        titleEl.innerText = newName;
+                        priceEl.innerText = `₹${newPrice}`;
+                        tagEl.innerText = newCategory;
+                        statusEl.textContent = newActive ? 'Active' : 'Inactive';
+                        statusEl.className = `status-badge ${newActive ? 'active' : 'inactive'}`;
                     } catch (e) {
-                        console.error("Update menu item error:", e);
-                        alert("Unable to update item. Please try again.");
+                        console.error("Update error:", e);
+                        alert("Update failed");
+                    }
+                };
+            });
+
+            document.querySelectorAll(".toggle-item").forEach((btn) => {
+                btn.onclick = async function () {
+                    const card = btn.closest(".menu-card");
+                    const id = card.dataset.id;
+                    if (!id || !confirm("Toggle active status?")) return;
+                    
+                    try {
+                        const resp = await fetch(`/admin/menu-items/${id}/toggle`, {
+                            method: "PATCH"
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok) {
+                            alert(data.error || "Toggle failed");
+                            return;
+                        }
+                        
+                        const statusEl = card.querySelector(".status-badge");
+                        const newStatus = data.item.is_active ? 'Active' : 'Inactive';
+                        statusEl.textContent = newStatus;
+                        statusEl.className = `status-badge ${data.item.is_active ? 'active' : 'inactive'}`;
+                        
+                        alert(data.message);
+                    } catch (e) {
+                        console.error("Toggle error:", e);
+                        alert("Toggle failed");
                     }
                 };
             });
@@ -346,16 +387,69 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // ----------------------------------------
-    // Settings Meal Mode (other admin pages)
+    // Settings Meal Mode (/admin/settings)
     // ----------------------------------------
-
-    const mealButtons = document.querySelectorAll(".meal-mode");
-    mealButtons.forEach((btn) => {
-        btn.addEventListener("click", function () {
-            mealButtons.forEach((b) => b.classList.remove("active"));
-            btn.classList.add("active");
+    
+    if (window.location.pathname === "/admin/settings") {
+        const mealButtons = document.querySelectorAll(".meal-mode");
+        const modeLabel = document.querySelector("[data-metric='meal-mode-label']");
+        const saveButton = document.querySelector("button:has(+ .metric-caption), .btn-primary");
+        
+        // Load current mode
+        async function loadCurrentMode() {
+            try {
+                const resp = await fetch("/admin/settings");
+                const data = await resp.json();
+                if (data.meal_mode) {
+                    const activeBtn = document.querySelector(`.meal-mode[onclick*="data.meal_mode"]`) || 
+                                    Array.from(mealButtons).find(btn => btn.textContent.trim().toLowerCase() === data.meal_mode.toLowerCase());
+                    if (activeBtn) {
+                        mealButtons.forEach(b => b.classList.remove("active"));
+                        activeBtn.classList.add("active");
+                    }
+                    if (modeLabel) modeLabel.textContent = data.meal_mode;
+                }
+            } catch (e) {
+                console.error("Load mode error:", e);
+            }
+        }
+        
+        // Button handlers
+        mealButtons.forEach((btn) => {
+            btn.dataset.mode = btn.textContent.trim().toLowerCase();
+            btn.addEventListener("click", async function () {
+                const newMode = this.dataset.mode;
+                mealButtons.forEach((b) => b.classList.remove("active"));
+                this.classList.add("active");
+                
+                try {
+                    const resp = await fetch("/admin/settings", {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({meal_mode: newMode})
+                    });
+                    const data = await resp.json();
+                    if (resp.ok && data.success) {
+                        if (modeLabel) modeLabel.textContent = newMode;
+                        // Show save feedback
+                        this.style.background = "#d1fae5";
+                        setTimeout(() => this.style.background = "", 1000);
+                    } else {
+                        alert(data.error || "Save failed");
+                        // Revert UI
+                        await loadCurrentMode();
+                    }
+                } catch (e) {
+                    console.error("Save mode error:", e);
+                    alert("Save failed");
+                    await loadCurrentMode();
+                }
+            });
         });
-    });
+        
+        // Initial load
+        loadCurrentMode();
+    }
 
     // ----------------------------------------
     // Dashboard Metric Placeholders
