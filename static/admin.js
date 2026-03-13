@@ -1,3 +1,4 @@
+
 // ============================================
 // ADMIN PANEL FRONTEND SCRIPT
 // ============================================
@@ -298,4 +299,3 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 });
-
