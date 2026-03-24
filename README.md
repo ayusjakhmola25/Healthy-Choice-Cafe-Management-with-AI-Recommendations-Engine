@@ -70,8 +70,8 @@ This project is built using an extremely decoupled and robust architecture.
       <td align="center"><b>📈 Analytics Profile</b></td>
     </tr>
     <tr>
-      <td><img src="static/images/healthy.jpg" alt="Menu" width="250"/></td>
-      <td><img src="static/images/ragi_dosa_with_sambar_25da86d7.jpg" alt="Cart" width="250"/></td>
+      <td><img src="static/images/dashboard.jpg" alt="Menu" width="250"/></td>
+      <td><img src="static/images/cart.jpg" alt="Cart" width="250"/></td>
       <td><img src="static/images/profile.jpg" alt="Profile" width="250"/></td>
     </tr>
   </table>
