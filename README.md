@@ -67,12 +67,10 @@ This project is built using an extremely decoupled and robust architecture.
     <tr>
       <td align="center"><b>🍔 Dynamic Cafeteria</b></td>
       <td align="center"><b>🛒 Intuitive Cart</b></td>
-      <td align="center"><b>📈 Analytics Profile</b></td>
     </tr>
     <tr>
       <td><img src="static/images/dashboard.jpeg" alt="Menu" width="250"/></td>
       <td><img src="static/images/cart.jpeg" alt="Cart" width="250"/></td>
-      <td><img src="static/images/profile.jpeg" alt="Profile" width="250"/></td>
     </tr>
   </table>
   
