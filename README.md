@@ -70,9 +70,9 @@ This project is built using an extremely decoupled and robust architecture.
       <td align="center"><b>📈 Analytics Profile</b></td>
     </tr>
     <tr>
-      <td><img src="static/images/dashboard.jpg" alt="Menu" width="250"/></td>
-      <td><img src="static/images/cart.jpg" alt="Cart" width="250"/></td>
-      <td><img src="static/images/profile.jpg" alt="Profile" width="250"/></td>
+      <td><img src="static/images/dashboard.jpeg" alt="Menu" width="250"/></td>
+      <td><img src="static/images/cart.jpeg" alt="Cart" width="250"/></td>
+      <td><img src="static/images/profile.jpeg" alt="Profile" width="250"/></td>
     </tr>
   </table>
   
@@ -84,8 +84,8 @@ This project is built using an extremely decoupled and robust architecture.
       <td align="center"><b>🧾 Branded PDF Invoices</b></td>
     </tr>
     <tr>
-       <td><img src="static/images/dashboard1.jpg" alt="Dashboard" width="375"/></td>
-       <td><img src="static/images/invoice.jpg" alt="Invoice" width="375"/></td>
+       <td><img src="static/images/dashboard1.jpeg" alt="Dashboard" width="375"/></td>
+       <td><img src="static/images/invoice.jpeg" alt="Invoice" width="375"/></td>
     </tr>
   </table>
 </div>
