@@ -53,6 +53,15 @@
             "mobile": "9045602537",
             "dob": null,
             "gender": null
+        },
+        {
+            "id": 7,
+            "name": "Ashutosh kashyap ",
+            "email": "officialyashu9119@gmail.com",
+            "password": "$2b$12$qqP7R8a.qL9gA1fYWmJIzO2iOt0loj.oVDjtVBKwFtVgqSbUg2wqW",
+            "mobile": "+91 9119663423",
+            "dob": null,
+            "gender": null
         }
     ],
     "login_history": [
