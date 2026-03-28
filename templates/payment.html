@@ -52,11 +52,12 @@
                         <input type="radio" name="paymentMethod" value="cod" onchange="togglePaymentForm()">
                         <span class="method-name">Cash on Delivery</span>
                     </label>
+                    <label class="payment-method">
+                        <input type="radio" name="paymentMethod" value="upi" onchange="togglePaymentForm()">
+                        <span class="method-name">UPI / Google Pay</span>
+                    </label>
                 </div>
             </div>
-            
-            <!-- Place Order Button -->
-            <button onclick="placeOrder()" class="payment-btn" style="margin-top: 20px; width: 100%;">Place Order</button>
             <form id="card-payment-form" class="payment-form" onsubmit="processCardPayment(event)">
                 <h3>Card Payment Details</h3>
                 <div class="form-group">
@@ -97,6 +98,15 @@
                     </div>
                 </div>
                 <button type="button" class="cod-btn" onclick="processCodPayment()">Confirm Cash on Delivery</button>
+            </div>
+            <div id="upi-payment" class="upi-payment" style="display: none; background: #fdfdfd; border: 1px solid #eaeaea; border-radius: 8px; padding: 20px; margin-top: 20px;">
+                <h3>UPI / Google Pay</h3>
+                <p style="color: #666; margin-bottom: 15px; font-size: 14px;">Enter your mobile number to receive the invoice on WhatsApp and complete the payment.</p>
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label for="upiMobile" style="display: block; font-weight: 600; margin-bottom: 8px;">WhatsApp Mobile Number</label>
+                    <input type="text" id="upiMobile" placeholder="e.g. 9876543210" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px;" required>
+                </div>
+                <button type="button" class="payment-btn" onclick="processUpiPayment()" style="width: 100%; padding: 12px; border-radius: 6px; background-color: #27ae60; color: white; border: none; font-weight: 600; cursor: pointer;">Pay via UPI / Google Pay</button>
             </div>
         </div>
     </section>

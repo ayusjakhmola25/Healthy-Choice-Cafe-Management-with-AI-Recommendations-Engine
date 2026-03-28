@@ -24,6 +24,53 @@ if sys.platform == 'win32':
 
 import re
 
+from twilio.rest import Client
+
+account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+try:
+    if account_sid and auth_token:
+        client = Client(account_sid, auth_token)
+    else:
+        client = None
+except Exception as e:
+    client = None
+    print(f"Twilio Client Init Error: {e}")
+
+TWILIO_WHATSAPP_NUMBER = os.environ.get("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
+
+def send_payment_success(mobile, name):
+    if not client: return
+    msg = f"""Hey {name} 👋
+
+Thanks for visiting *Healthy Cafe* 🥗
+
+Your order is confirmed ✅
+We hope you enjoyed your meal!
+
+See you again soon 💚"""
+    try:
+        client.messages.create(
+            from_=TWILIO_WHATSAPP_NUMBER,
+            body=msg,
+            to=f"whatsapp:+91{mobile}"
+        )
+        print(f"Payment success WhatsApp sent to {mobile}")
+    except Exception as e:
+        print(f"Twilio error (payment success): {e}")
+
+def send_invoice(mobile, pdf_url):
+    if not client: return
+    try:
+        client.messages.create(
+            from_=TWILIO_WHATSAPP_NUMBER,
+            to=f"whatsapp:+91{mobile}",
+            media_url=[pdf_url]
+        )
+        print(f"Invoice WhatsApp sent to {mobile}")
+    except Exception as e:
+        print(f"Twilio error (invoice): {e}")
+
 def validate_password(password):
     """
     Validate password meets the following requirements:
@@ -217,9 +264,6 @@ def teardown_db_connection(exception):
 
 
 
-
-
-
 import smtplib  
 
 try:
@@ -408,191 +452,6 @@ def admin_login():
         "message": "Admin login successful"
     })
 
-@app.route('/send-login-otp', methods=['POST'])
-def send_login_otp():
-
-    data = request.get_json()
-    email = data.get("email")
-
-    if not email:
-        return jsonify({"error": "Email required"}), 400
-
-    # Find user
-    cursor.execute("SELECT id, name FROM users WHERE email=%s", (email,))
-    user = cursor.fetchone()
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    user_id = user["id"]
-    user_name = user.get("name", "User")
-
-    # Delete any existing expired OTPs
-    cursor.execute("DELETE FROM login_otp WHERE user_id=%s AND expiry_time < NOW()", (user_id,))
-    db.commit()
-
-    # Generate OTP
-    otp = random.randint(100000, 999999)
-
-    expiry_time = datetime.now() + timedelta(minutes=5)
-
-    query = """
-    INSERT INTO login_otp (user_id, otp_code, expiry_time)
-    VALUES (%s,%s,%s)
-    """
-
-    cursor.execute(query, (user_id, otp, expiry_time))
-    db.commit()
-
-    
-    msg = Message(
-        subject="Healthy Cafe Login Verification Code",
-        sender=app.config['MAIL_USERNAME'],
-        recipients=[email]
-    )
-
-    msg.html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<style>
-body {{
-    font-family: Arial, sans-serif;
-    background-color: #f4f6f8;
-    padding: 20px;
-}}
-
-.container {{
-    max-width: 500px;
-    margin: auto;
-    background: white;
-    padding: 30px;
-    border-radius: 10px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    text-align: center;
-}}
-
-.header {{
-    font-size: 22px;
-    font-weight: bold;
-    color: #2c3e50;
-}}
-
-.otp-box {{
-    margin: 25px 0;
-    font-size: 32px;
-    letter-spacing: 6px;
-    font-weight: bold;
-    color: white;
-    background: #3498db;
-    padding: 15px;
-    border-radius: 8px;
-    display: inline-block;
-}}
-
-.info {{
-    font-size: 14px;
-    color: #555;
-}}
-
-.footer {{
-    margin-top: 25px;
-    font-size: 12px;
-    color: #999;
-}}
-</style>
-</head>
-
-<body>
-
-<div class="container">
-
-<div class="header">
-Healthy Cafe Security Verification
-</div>
-
-<p>Hello {user_name},</p>
-
-<p>Your One Time Password (OTP) for login is:</p>
-
-<div class="otp-box">{otp}</div>
-
-<p class="info">
-This OTP is valid for <b>5 minutes</b>.
-</p>
-
-<p class="info">
-Do not share this code with anyone for security reasons.
-</p>
-
-<div class="footer">
-Healthy Cafe • Secure Login System
-</div>
-
-</div>
-
-</body>
-</html>
-"""
-
-    try:
-        mail.send(msg)
-    except Exception as e:
-        print(f"Error sending email: {e}")
-        return jsonify({'error': 'Failed to send OTP email'}), 500
-
-    print("OTP:", otp)
-
-    return jsonify({
-        "success": True,
-        "otpId": user_id
-    })
-
-@app.route('/verify-login-otp', methods=['POST'])
-def verify_login_otp():
-    data = request.get_json()
-    user_id = data.get('otpId')
-    otp = data.get('otp')
-
-    if not user_id or not otp:
-        return jsonify({'error': 'User ID and OTP are required'}), 400
-
-    # Get OTP from database
-    cursor.execute(
-        "SELECT * FROM login_otp WHERE user_id=%s AND otp_code=%s AND expiry_time > NOW()",
-        (user_id, otp)
-    )
-    stored_otp = cursor.fetchone()
-
-    if not stored_otp:
-        return jsonify({'error': 'Invalid or expired OTP'}), 400
-
-    # Get user from database
-    cursor.execute("SELECT * FROM users WHERE id=%s", (user_id,))
-    user = cursor.fetchone()
-
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
-
-    # Delete the OTP after successful verification
-    cursor.execute("DELETE FROM login_otp WHERE user_id=%s", (user_id,))
-    db.commit()
-
-    # Insert login history
-    ip_address = request.remote_addr
-    query = """
-    INSERT INTO login_history (user_id, login_time, ip_address)
-    VALUES (%s,%s,%s)
-    """
-    cursor.execute(query, (user["id"], datetime.now(), ip_address))
-    db.commit()
-
-    # Store user info in session
-    session['user_id'] = user['id']
-    session['user_name'] = user['name']
-
-    return jsonify({'success': True, 'message': 'Login successful', 'userId': user['id']})
 
 @app.route('/login-count', methods=['POST'])
 def login_count():
@@ -662,6 +521,32 @@ def get_food_items():
     items = load_food_items()
     return jsonify(items)
 
+@app.route('/get-menu', methods=['GET'])
+def get_menu():
+    """Return active menu items, optionally filtered by diet_type."""
+    diet_type = request.args.get('type', 'all')
+
+    try:
+        if diet_type and diet_type != 'all':
+            cursor.execute(
+                "SELECT * FROM menu_items WHERE is_active = 1 AND diet_type = %s ORDER BY id DESC",
+                (diet_type,)
+            )
+        else:
+            cursor.execute("SELECT * FROM menu_items WHERE is_active = 1 ORDER BY id DESC")
+
+        items = cursor.fetchall()
+
+        # Ensure image_url is full path
+        for item in items:
+            if item.get('image_url') and '/static/images/' not in item['image_url']:
+                item['image_url'] = '/static/images/' + item['image_url'].split('/')[-1]
+
+        return jsonify(items)
+    except Exception as e:
+        print(f"Error in /get-menu: {e}")
+        return jsonify([]), 500
+
 @app.route('/menu-items', methods=['GET'])
 def get_menu_items():
     cursor.execute("SELECT * FROM menu_items WHERE is_active = 1 ORDER BY id DESC")
@@ -690,102 +575,154 @@ def generate_invoice():
         return jsonify({'error': 'Missing required fields'}), 400
 
     try:
-        # Create PDF
-        filename = f"invoice_{int(time.time())}.pdf"
-        doc = SimpleDocTemplate(filename, pagesize=letter)
+        # Create Professional PDF
+        from reportlab.lib.pagesizes import A4
+        from reportlab.platypus import Image as RLImage
+        from reportlab.lib.units import inch
+        from reportlab.lib.utils import ImageReader
+
+        static_folder = os.path.join(app.root_path, 'static')
+        os.makedirs(static_folder, exist_ok=True)
+        invoice_id = f"{int(time.time() * 1000)}"
+        filename = f"invoice_{invoice_id}.pdf"
+        filepath = os.path.join(static_folder, filename)
+        
+        doc = SimpleDocTemplate(filepath, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
         styles = getSampleStyleSheet()
         story = []
+        
+        # Adding Image watermark function
+        logo_path = os.path.join(app.root_path, 'static', 'images', 'cafelogo.jpeg')
+        def add_watermark(canvas, doc):
+            canvas.saveState()
+            if os.path.exists(logo_path):
+                # Try to use PIL to create a transparent version on the fly, otherwise just draw text
+                try:
+                    from PIL import Image as PILImage, ImageEnhance
+                    img = PILImage.open(logo_path).convert('RGBA')
+                    alpha = img.split()[3]
+                    alpha = ImageEnhance.Brightness(alpha).enhance(0.1)
+                    img.putalpha(alpha)
+                    temp_wm = os.path.join(app.root_path, 'static', 'images', f'temp_wm_{invoice_id}.png')
+                    img.save(temp_wm, 'PNG')
+                    
+                    canvas.drawImage(temp_wm, (A4[0]-300)/2, (A4[1]-300)/2, width=300, height=300, mask='auto')
+                    os.remove(temp_wm)
+                except Exception:
+                    canvas.setFont('Helvetica-Bold', 60)
+                    canvas.setFillColorRGB(0.9, 0.9, 0.9)
+                    canvas.drawCentredString(A4[0]/2, A4[1]/2, "HEALTHY CAFE")
+            canvas.restoreState()
 
-        # Header
-        title_style = styles['Heading1']
-        title_style.alignment = 1  # Center alignment
-        title = Paragraph("Cafe Zone", title_style)
-        story.append(title)
-
-        subtitle = Paragraph("Invoice", styles['Heading2'])
-        story.append(subtitle)
-        story.append(Spacer(1, 12))
-
-        # Invoice details
-        invoice_info = [
-            f"Date: {datetime.now().strftime('%Y-%m-%d')}",
-            f"Time: {datetime.now().strftime('%H:%M:%S')}",
-            f"Invoice #: CZ{int(time.time() * 1000)}"
+        # Header Section (Logo + Cafe Details)
+        header_data = []
+        cafe_info = [
+            Paragraph("<b>Healthy Cafe</b>", styles['Heading1']),
+            Paragraph("<i>Fresh • Healthy • Delicious</i>", styles['Normal']),
+            Paragraph("123 Cafe Street, Food City, FC 12345", styles['Normal']),
+            Paragraph("Phone: +91 9876543210 | Email: hello@healthycafe.com", styles['Normal'])
         ]
-
-        if customer_name:
-            invoice_info.append(f"Customer: {customer_name}")
-        if customer_mobile:
-            invoice_info.append(f"Mobile: {customer_mobile}")
-
-        for info in invoice_info:
-            story.append(Paragraph(info, styles['Normal']))
-        story.append(Spacer(1, 12))
-
-        # Order details header
-        story.append(Paragraph("Order Details:", styles['Heading3']))
-        story.append(Spacer(1, 6))
-
-        # Table data
-        table_data = [['Item', 'Qty', 'Price', 'Total']]
+        
+        if os.path.exists(logo_path):
+            logo = RLImage(logo_path, width=1.5*inch, height=1.5*inch)
+            header_data = [[logo, cafe_info]]
+        else:
+            header_data = [["", cafe_info]]
+            
+        header_table = Table(header_data, colWidths=[2*inch, 4.5*inch])
+        header_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('ALIGN', (1,0), (1,0), 'LEFT')
+        ]))
+        story.append(header_table)
+        story.append(Spacer(1, 20))
+        
+        # Invoice Details
+        invoice_number = f"CZ{invoice_id}"
+        details_data = [
+            [Paragraph("<b>Invoice To:</b>", styles['Normal']), Paragraph(f"<b>Invoice #:</b> {invoice_number}", styles['Normal'])],
+            [Paragraph(f"Name: {customer_name or 'Walk-in Customer'}", styles['Normal']), Paragraph(f"Date: {datetime.now().strftime('%d %b %Y')}", styles['Normal'])],
+            [Paragraph(f"Mobile: {customer_mobile or 'N/A'}", styles['Normal']), Paragraph(f"Time: {datetime.now().strftime('%I:%M %p')}", styles['Normal'])]
+        ]
+        details_table = Table(details_data, colWidths=[3.25*inch, 3.25*inch])
+        details_table.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'LEFT')]))
+        story.append(details_table)
+        story.append(Spacer(1, 20))
+        
+        # Table Section
+        table_data = [['Item Name', 'Quantity', 'Price', 'Total']]
         for item in order_items:
             table_data.append([
                 item['name'],
                 str(item['quantity']),
-                f"₹{item['price']}",
-                f"₹{(item['price'] * item['quantity']):.2f}"
+                f"Rs. {item['price']}",
+                f"Rs. {(item['price'] * item['quantity']):.2f}"
             ])
-
-        table = Table(table_data)
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            
+        # Green theme
+        green_color = colors.HexColor('#28a745')
+        light_gray = colors.HexColor('#f8f9fa')
+        
+        invoice_table = Table(table_data, colWidths=[3.25*inch, 1*inch, 1.125*inch, 1.125*inch])
+        invoice_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), green_color),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),  # Left align item names
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('TOPPADDING', (0, 0), (-1, 0), 10),
             ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, light_gray]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+            ('BOX', (0, 0), (-1, -1), 1, green_color)
         ]))
-        story.append(table)
-        story.append(Spacer(1, 12))
-
-        # Calculate amounts
-        subtotal = float(total_amount) - 50  # Subtract delivery fee
+        story.append(invoice_table)
+        story.append(Spacer(1, 15))
+        
+        # Pricing Section
+        subtotal = float(total_amount) - 50  # Delivery fee
         gst_amount = subtotal * 0.18
         delivery_fee = 50
-
-        amounts = [
-            f"Subtotal: ₹{subtotal:.2f}",
-            f"GST (18%): ₹{gst_amount:.2f}",
-            f"Delivery Fee: ₹{delivery_fee:.2f}",
-            f"Total Amount: ₹{total_amount}"
+        
+        pricing_data = [
+            ["", "Subtotal:", f"Rs. {subtotal:.2f}"],
+            ["", "GST (18%):", f"Rs. {gst_amount:.2f}"],
+            ["", "Delivery Fee:", f"Rs. {delivery_fee:.2f}"],
+            ["", "Final Total:", f"Rs. {total_amount}"]
         ]
-
-        for amount in amounts:
-            story.append(Paragraph(amount, styles['Normal']))
-        story.append(Spacer(1, 6))
-
-        story.append(Paragraph(f"Payment Method: {payment_method}", styles['Normal']))
-        story.append(Spacer(1, 12))
-
-        # Footer
-        footer_style = styles['Normal']
-        footer_style.fontSize = 8
-        footer_style.textColor = colors.gray
-        story.append(Paragraph("Thank you for choosing Cafe Zone!", footer_style))
-        story.append(Paragraph("For any queries, contact us at support@cafezone.com", footer_style))
-
-        doc.build(story)
-
-        # Read PDF as base64
-        with open(filename, 'rb') as f:
+        pricing_table = Table(pricing_data, colWidths=[3.5*inch, 1.5*inch, 1.5*inch])
+        pricing_table.setStyle(TableStyle([
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('ALIGN', (2, 0), (2, -1), 'RIGHT'),
+            ('FONTNAME', (1, 3), (2, 3), 'Helvetica-Bold'),
+            ('BACKGROUND', (1, 3), (2, 3), colors.HexColor('#e8f5e9')),  # Highlight final total
+            ('PADDING', (1, 3), (2, 3), 8)
+        ]))
+        story.append(pricing_table)
+        story.append(Spacer(1, 40))
+        
+        # Footer Section
+        centered_style = ParagraphStyle(name='Centered', parent=styles['Normal'], alignment=1)
+        story.append(Paragraph(f"Payment Method: <b>{payment_method}</b>", centered_style))
+        story.append(Spacer(1, 20))
+        
+        story.append(Paragraph("<b>Thank you for visiting Healthy Cafe!</b>", centered_style))
+        story.append(Paragraph("<i>Stay healthy, eat fresh</i>", centered_style))
+        
+        # Build document
+        doc.build(story, onFirstPage=add_watermark, onLaterPages=add_watermark)
+        
+        # Read PDF as base64 for frontend response
+        with open(filepath, 'rb') as f:
             pdf_data = f.read()
         import base64
         pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
-
-        # Clean up
-        os.remove(filename)
+        
+        pdf_url = request.host_url.rstrip('/') + f'/static/{filename}'
+        if customer_mobile:
+            send_invoice(customer_mobile, pdf_url)
 
         return jsonify({
             'success': True,
@@ -933,8 +870,66 @@ def save_order():
         print(f"Warning persisting save_order to DB: {e}")
 
     print(f"Order completed: {name}, {mobile}, {email}, {total_amount}, diet: {diet_preference}, user_id: {user_id}, order_id: {order_id}")
+    if mobile:
+        send_payment_success(mobile, name or "Customer")
 
     return jsonify({'success': True, 'message': 'Payment successful', 'order_id': order_id})
+
+@app.route('/upi-payment', methods=['POST'])
+def upi_payment():
+    data = request.get_json()
+    order_id = data.get('order_id')
+    name = data.get('name')
+    mobile = data.get('mobile')
+    email = data.get('email')
+    order_data = data.get('order_data')
+    total_amount = data.get('total_amount')
+    payment_method = data.get('payment_method')
+    diet_preference = data.get('diet_preference')
+    user_id = data.get('user_id')
+    whatsapp_mobile = data.get('whatsapp_mobile')
+
+    if not order_id or not total_amount or not whatsapp_mobile:
+        return jsonify({'error': 'Missing required fields for UPI'}), 400
+
+    # 1. Save to guest_orders list
+    new_order = {
+        'id': order_id,
+        'user_id': user_id,
+        'name': name,
+        'mobile': mobile,
+        'email': email,
+        'order_data': order_data,
+        'total_amount': total_amount,
+        'payment_method': payment_method,
+        'diet_preference': diet_preference,
+        'order_date': datetime.now().isoformat()
+    }
+    guest_orders.append(new_order)
+
+    # 2. Persist to DB
+    try:
+        cursor.execute(
+            """
+            UPDATE orders
+            SET order_status = %s, payment_status = %s
+            WHERE id = %s
+            """,
+            ("PAID", "PAID", order_id),
+        )
+        db.commit()
+    except Exception as e:
+        print(f"Warning persisting upi_payment to DB: {e}")
+
+    # 3. Trigger WhatsApp Payment Success Message
+    if whatsapp_mobile:
+        send_payment_success(whatsapp_mobile, name or "Customer")
+
+    return jsonify({
+        'success': True, 
+        'message': 'UPI Payment successful.', 
+        'order_id': order_id
+    })
 
 @app.route('/get-guest-orders', methods=['POST'])
 def get_guest_orders():

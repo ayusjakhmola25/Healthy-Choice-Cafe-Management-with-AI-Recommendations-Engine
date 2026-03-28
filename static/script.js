@@ -1,5 +1,5 @@
 
- // Login function for email/password login
+// Login function for email/password login
 async function loginUser(e) {
   e.preventDefault();
   const email = document.getElementById('loginEmail').value;
@@ -20,17 +20,11 @@ async function loginUser(e) {
       throw new Error(data.error || 'Login failed');
     }
 
-    // Store email for OTP verification
-    localStorage.setItem('loginEmail', email);
+    // Direct Login without OTP
+    localStorage.setItem('user', JSON.stringify(data.user));
 
-    // Hide login button and form, show OTP section
-    document.getElementById('loginBtn').style.display = 'none';
-    document.querySelector('form').style.display = 'none';
-    document.getElementById('otpSection').style.display = 'block';
-
-    // Send OTP to user's email
-    await sendOtp(email);
-
+    // Redirect to cafeteria — popups will be handled there
+    window.location.href = '/cafeteria';
   } catch (error) {
     alert('Error logging in: ' + error.message);
   }
@@ -38,41 +32,7 @@ async function loginUser(e) {
   return false;
 }
 
-// Function to send OTP to email
-async function sendOtp(email) {
-  try {
-    const response = await fetch('http://127.0.0.1:3000/send-login-otp', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email: email })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to send OTP');
-    }
-
-    // Store OTP ID and expiry time (5 minutes from now)
-    localStorage.setItem('otpId', data.otpId);
-    localStorage.setItem('otpExpiry', Date.now() + 300000); // 5 minutes in milliseconds
-
-    // Show success message
-    document.getElementById('otpMessage').textContent = 'OTP sent to your email!';
-    
-    // Start timer
-    startTimer();
-
-  } catch (error) {
-    alert('Error sending OTP: ' + error.message);
-    // Show login form again if OTP fails
-    document.getElementById('loginBtn').style.display = 'block';
-    document.querySelector('form').style.display = 'block';
-    document.getElementById('otpSection').style.display = 'none';
-  }
-}
+// selectDiet and popup setup removed — popup flow now lives in cafeteria.html
 
 // Existing function: registerUser
 async function registerUser(e) {
@@ -125,7 +85,9 @@ async function registerUser(e) {
 // Existing function: logout
 function logout() {
   alert('Logged out successfully!');
-  localStorage.clear(); // Clear all localStorage data
+  localStorage.removeItem('dietPreference'); // Reset diet preference so popup shows on next login
+  localStorage.removeItem('user');
+  localStorage.removeItem('cart');
   window.location.href = '/login'; // Redirect to login page
 }
 
@@ -462,64 +424,6 @@ function saveUserToLocal(userInfo) {
 	}));
 }
 
-// Function to verify OTP (API call)
-async function verifyOtp() {
-  console.log('verifyOtp called');
-  // Only allow OTP verification on login page (served at / or /login)
-  if (window.location.pathname !== '/' && !window.location.pathname.includes('login.html')) {
-    console.log('Not on login page');
-    return;
-  }
-
-  const enteredOtp = document.getElementById('otpInput').value.trim();
-  console.log('Entered OTP:', enteredOtp);
-  const otpId = localStorage.getItem('otpId');
-  console.log('OTP ID:', otpId);
-
-  try {
-    const response = await fetch('http://127.0.0.1:3000/verify-login-otp', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ otpId: otpId, otp: enteredOtp })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Verification failed');
-    }
-
-    if (data.success) {
-      // Fetch user data after successful login
-      const email = document.getElementById('loginEmail').value;
-      const checkResponse = await fetch('http://127.0.0.1:3000/check-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email })
-      });
-
-      if (checkResponse.ok) {
-        const checkData = await checkResponse.json();
-        if (checkData.exists) {
-          localStorage.setItem('user', JSON.stringify(checkData.user));
-        }
-      }
-
-      // Always redirect to cafeteria after successful login
-      window.location.href = '/cafeteria';
-    } else {
-      // Invalid OTP - redirect to register page for MFA setup
-      alert('Invalid OTP! Redirecting to registration for security verification.');
-      window.location.href = '/register';
-    }
-  } catch (error) {
-    alert('Error verifying OTP: ' + error.message);
-  }
-}
 
 
 
@@ -688,15 +592,18 @@ function createNutritionChart(canvasId, protein, carbs, fats, calories) {
     });
 }
 
-// Function to load food items strictly from database menu-items API
+// Function to load food items from database via /get-menu API with diet_type filtering
 async function loadFoodItems() {
     const menuGrid = document.querySelector(".menu-grid");
     if (!menuGrid) return;
 
+    // Clear previous items
     menuGrid.innerHTML = '<p style="padding:1rem;color:#6b7280;">Loading menu items…</p>';
 
     try {
-        const response = await fetch("http://127.0.0.1:3000/food-items");
+        // Read diet preference and pass to server for DB-level filtering
+        const dietPreference = localStorage.getItem("dietPreference") || "all";
+        const response = await fetch(`/get-menu?type=${encodeURIComponent(dietPreference)}`);
         if (!response.ok) {
             throw new Error("Failed to load menu items");
         }
@@ -704,24 +611,6 @@ async function loadFoodItems() {
         let items = await response.json();
         if (!items || items.length === 0) {
             menuGrid.innerHTML = '<p style="padding:1rem;color:#6b7280;">No items available.</p>';
-            return;
-        }
-
-        // Filter based on preference directly on DB-backed items (if category exists)
-        const dietPreference = localStorage.getItem("dietPreference");
-        if (dietPreference === "diet") {
-            items = items.filter(
-                (item) => (item.category || "").toLowerCase() === "diet"
-            );
-        } else if (dietPreference === "non-diet") {
-            items = items.filter(
-                (item) => (item.category || "").toLowerCase() === "non-diet"
-            );
-        }
-
-        if (!items.length) {
-            menuGrid.innerHTML =
-                '<p style="padding:1rem;color:#6b7280;">No items match your current filter.</p>';
             return;
         }
 
@@ -792,6 +681,7 @@ async function loadFoodItems() {
             '<p style="padding:1rem;color:#b91c1c;">Unable to load menu items from the server.</p>';
     }
 }
+
 
 // Function to load cart page
 function loadCartPage() {
@@ -1055,13 +945,20 @@ function togglePaymentForm() {
     const selectedMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
     const cardForm = document.getElementById('card-payment-form');
     const codPayment = document.getElementById('cod-payment');
+    const upiPayment = document.getElementById('upi-payment');
 
     if (selectedMethod === 'card') {
         cardForm.style.display = 'block';
         codPayment.style.display = 'none';
-    } else {
+        if (upiPayment) upiPayment.style.display = 'none';
+    } else if (selectedMethod === 'cod') {
         cardForm.style.display = 'none';
         codPayment.style.display = 'block';
+        if (upiPayment) upiPayment.style.display = 'none';
+    } else if (selectedMethod === 'upi') {
+        cardForm.style.display = 'none';
+        codPayment.style.display = 'none';
+        if (upiPayment) upiPayment.style.display = 'block';
     }
 }
 
@@ -1224,6 +1121,90 @@ async function processCodPayment() {
             window.location.href = '/orders';
         } catch (error) {
             alert('Error processing COD order: ' + error.message);
+        }
+    }
+}
+
+// Function to process UPI / Google Pay payment
+async function processUpiPayment() {
+    const mobileField = document.getElementById('upiMobile');
+    const whatsappMobile = mobileField ? mobileField.value.trim() : '';
+
+    if (!whatsappMobile || !/^\d{10}$/.test(whatsappMobile)) {
+        alert('Please enter a valid 10-digit mobile number for WhatsApp updates.');
+        return;
+    }
+
+    if (confirm('Confirm your UPI / Google Pay order? You will pay \u20B9' + calculateTotal() + ' via UPI.')) {
+        // Get user details
+        const user = JSON.parse(localStorage.getItem('user')) || {};
+        const totalAmount = calculateTotal();
+
+        // Get guest details if not logged in
+        let customerName = user.name;
+        let customerMobile = user.mobile;
+        let customerEmail = user.email;
+        let dietPreference = null;
+
+        if (!customerName || !customerMobile || !customerEmail) {
+            customerName = document.getElementById('guestName').value;
+            customerMobile = document.getElementById('guestMobile').value;
+            customerEmail = document.getElementById('guestEmail').value;
+            dietPreference = document.getElementById('dietPreference').value;
+
+            if (!customerName || !customerMobile || !customerEmail) {
+                alert('Please fill in guest details.');
+                return;
+            }
+        }
+
+        try {
+            const orderId = localStorage.getItem('currentOrderId');
+            if (!orderId) {
+                alert('No active order found. Please return to cart and try again.');
+                return;
+            }
+
+            // Save order to database via new upi-payment endpoint
+            const saveResponse = await fetch('http://127.0.0.1:3000/upi-payment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    order_id: orderId,
+                    user_id: user.id || null,
+                    name: customerName,
+                    mobile: customerMobile,
+                    email: customerEmail,
+                    order_data: JSON.stringify(cart),
+                    total_amount: totalAmount,
+                    payment_method: 'UPI / Google Pay',
+                    diet_preference: dietPreference,
+                    whatsapp_mobile: whatsappMobile
+                })
+            });
+
+            if (!saveResponse.ok) {
+                throw new Error('Failed to process UPI order');
+            }
+
+            // Generate and download invoice locally
+            await generateAndDownloadInvoice('UPI / Google Pay', customerName, customerMobile);
+
+            // Save order to localStorage for display
+            await saveOrder('Paid', 'UPI / Google Pay');
+
+            alert('UPI payment successful! Your order has been placed and invoice sent to WhatsApp.');
+
+            // Clear cart
+            localStorage.removeItem('cart');
+            cart = [];
+
+            // Redirect to orders
+            window.location.href = '/orders';
+        } catch (error) {
+            alert('Error processing UPI payment: ' + error.message);
         }
     }
 }

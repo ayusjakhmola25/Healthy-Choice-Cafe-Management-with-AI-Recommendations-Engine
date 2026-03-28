@@ -84,6 +84,19 @@
     </div>
 
 
+    <!-- Diet Selection Popup -->
+    <div id="dietPopup" class="popup-overlay" style="display: none;">
+        <div class="popup-content">
+            <h2 style="color: #5DADE2;">Choose Your Meal Preference</h2>
+            <p style="color: #34495E;">Select your preferred meal type to personalize the menu.</p>
+            <div class="popup-buttons">
+                <button id="dietBtn" class="popup-btn"><i class="fas fa-leaf"></i> Diet</button>
+                <button id="nonDietBtn" class="popup-btn"><i class="fas fa-drumstick-bite"></i> Non-Diet</button>
+                <button id="cancelBtn" class="popup-btn cancel-btn"><i class="fas fa-times"></i> Skip</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Add to Cart Confirmation Popup -->
     <div id="addToCartPopup" class="popup-overlay" style="display: none;">
         <div class="popup-content">
@@ -98,7 +111,84 @@
 
     <script src="/static/script.js"></script>
     <script>
-        document.addEventListener("DOMContentLoaded", loadFoodItems)
+        document.addEventListener("DOMContentLoaded", function () {
+            const dietPreference = localStorage.getItem("dietPreference");
+
+            if (!dietPreference) {
+                // Step 1: Show Welcome Popup
+                const welcomePopup = document.getElementById("welcomePopup");
+                if (welcomePopup) {
+                    welcomePopup.style.display = "flex";
+                }
+
+                // Step 1 → 2: Welcome Continue → Intermediate "How can we help you?"
+                const continueBtn = document.getElementById("continueBtn");
+                if (continueBtn) {
+                    continueBtn.addEventListener("click", function () {
+                        welcomePopup.style.display = "none";
+                        const intermediatePopup = document.getElementById("intermediatePopup");
+                        if (intermediatePopup) {
+                            intermediatePopup.style.display = "flex";
+                        }
+                    });
+                }
+
+                // Step 2 → 3: Intermediate OK → Diet Selection Popup
+                const intermediateOkBtn = document.getElementById("intermediateOkBtn");
+                if (intermediateOkBtn) {
+                    intermediateOkBtn.addEventListener("click", function () {
+                        document.getElementById("intermediatePopup").style.display = "none";
+                        const dietPopup = document.getElementById("dietPopup");
+                        if (dietPopup) {
+                            dietPopup.style.display = "flex";
+                        }
+                    });
+                }
+
+                // Step 2 (Cancel): Skip diet selection, load all items
+                const intermediateCancelBtn = document.getElementById("intermediateCancelBtn");
+                if (intermediateCancelBtn) {
+                    intermediateCancelBtn.addEventListener("click", function () {
+                        document.getElementById("intermediatePopup").style.display = "none";
+                        localStorage.setItem("dietPreference", "all");
+                        loadFoodItems();
+                    });
+                }
+
+                // Step 3: Diet selection buttons
+                const dietBtn = document.getElementById("dietBtn");
+                const nonDietBtn = document.getElementById("nonDietBtn");
+                const cancelBtn = document.getElementById("cancelBtn");
+
+                if (dietBtn) {
+                    dietBtn.addEventListener("click", function () {
+                        localStorage.setItem("dietPreference", "diet");
+                        document.getElementById("dietPopup").style.display = "none";
+                        loadFoodItems();
+                    });
+                }
+                if (nonDietBtn) {
+                    nonDietBtn.addEventListener("click", function () {
+                        localStorage.setItem("dietPreference", "nondiet");
+                        document.getElementById("dietPopup").style.display = "none";
+                        loadFoodItems();
+                    });
+                }
+                if (cancelBtn) {
+                    cancelBtn.addEventListener("click", function () {
+                        localStorage.setItem("dietPreference", "all");
+                        document.getElementById("dietPopup").style.display = "none";
+                        loadFoodItems();
+                    });
+                }
+            } else {
+                // Preference already set — load menu directly
+                loadFoodItems();
+            }
+
+            // Update cart count on page load
+            updateCartCount();
+        });
     </script>
 </body>
 </html>
