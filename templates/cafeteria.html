@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +9,7 @@
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
     <div class="layout">
         <aside class="side-nav">
@@ -20,9 +22,11 @@
             </div>
             <nav class="side-links">
                 <a href="/cafeteria" class="side-link active"><span>🍽️</span><span>Menu</span></a>
-                <a href="/cart" class="side-link"><span>🛒</span><span>My Cart</span><span class="badge" id="cart-count">0</span></a>
+                <a href="/cart" class="side-link"><span>🛒</span><span>My Cart</span><span class="badge"
+                        id="cart-count">0</span></a>
                 <a href="/orders" class="side-link"><span>📦</span><span>My Orders</span></a>
                 <a href="/profile" class="side-link"><span>👤</span><span>Profile</span></a>
+                <a href="/best-selling" class="side-link"><span>🔥</span><span>Best Selling</span></a>
             </nav>
             <div class="side-footer">
                 <button class="logout-btn" onclick="logout()">↪ Logout</button>
@@ -34,27 +38,27 @@
                 <h1 class="page-title">Our Menu</h1>
                 <div class="page-subtitle">Discover delicious Indian cuisine</div>
             </header>
-        <!-- AI Recommendations Banner -->
-        <section class="ai-reco" id="aiReco">
-            <div class="ai-reco-header">
-                <span style="font-size:18px;">🧠 AI Recommendations for You</span>
-                <span class="ai-chip" id="aiRecoTag">Personalized</span>
+            <!-- AI Recommendations Banner -->
+            <section class="ai-reco" id="aiReco">
+                <div class="ai-reco-header">
+                    <span style="font-size:18px;">🧠 AI Recommendations for You</span>
+                    <span class="ai-chip" id="aiRecoTag">Personalized</span>
+                </div>
+                <div class="ai-reco-body" id="aiRecoBody">
+                    <div class="ai-reco-loading" id="aiRecoLoading">Analyzing your preferences...</div>
+                    <div class="ai-reco-cards" id="aiRecoCards" style="display:none;"></div>
+                </div>
+            </section>
+
+            <div class="search-row">
+                <input type="text" placeholder="Search for dishes..." class="search-field">
             </div>
-            <div class="ai-reco-body" id="aiRecoBody">
-                <div class="ai-reco-loading" id="aiRecoLoading">Analyzing your preferences...</div>
-                <div class="ai-reco-cards" id="aiRecoCards" style="display:none;"></div>
+
+            <h2 class="section-title">All Items</h2>
+
+            <div class="menu-grid">
+                <!-- Menu items will be loaded dynamically by JavaScript -->
             </div>
-        </section>
-
-        <div class="search-row">
-            <input type="text" placeholder="Search for dishes..." class="search-field">
-        </div>
-
-        <h2 class="section-title">All Items</h2>
-
-        <div class="menu-grid">
-            <!-- Menu items will be loaded dynamically by JavaScript -->
-        </div>
         </main>
     </div>
 
@@ -62,9 +66,10 @@
     <div id="welcomePopup" class="popup-overlay" style="display: none;">
         <div class="popup-content">
             <div class="popup-logo">
-                <img src="/static/images/cafelogo.jpeg" alt="Cafe Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                <img src="/static/images/cafelogo.jpeg" alt="Cafe Logo"
+                    style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
             </div>
-            <h2 style="color: #5DADE2;">Welcome, {{ user_name }}!</h2>
+            <h2 id="welcomePopupTitle" style="color: #5DADE2;">Welcome, {{ user_name }}!</h2>
             <p style="color: #34495E;">Thank you for logging in to HangOut Cafe.</p>
             <div class="popup-buttons">
                 <button id="continueBtn" class="popup-btn"><i class="fas fa-arrow-right"></i> Continue</button>
@@ -78,7 +83,8 @@
             <h2 style="color: #5DADE2;">How can we help you?</h2>
             <div class="popup-buttons">
                 <button id="intermediateOkBtn" class="popup-btn"><i class="fas fa-check"></i> OK</button>
-                <button id="intermediateCancelBtn" class="popup-btn cancel-btn"><i class="fas fa-times"></i> Cancel</button>
+                <button id="intermediateCancelBtn" class="popup-btn cancel-btn"><i class="fas fa-times"></i>
+                    Cancel</button>
             </div>
         </div>
     </div>
@@ -109,6 +115,96 @@
         </div>
     </div>
 
+    <!-- AI Chatbot UI -->
+    <div id="chatbotIcon" style="position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background-color: #2e7d32; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.2); z-index: 1000;" onclick="toggleChatbot()">
+        <i class="fas fa-robot"></i>
+    </div>
+    
+    <div id="chatbotWindow" style="position: fixed; bottom: 90px; right: 20px; width: 350px; height: 450px; background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); display: none; flex-direction: column; z-index: 1000; overflow: hidden; border: 1px solid #e0e0e0;">
+        <div style="background: #2e7d32; color: white; padding: 15px; font-weight: bold; display: flex; justify-content: space-between; align-items: center;">
+            <span><i class="fas fa-robot"></i> AI Nutritionist</span>
+            <i class="fas fa-times" style="cursor: pointer;" onclick="toggleChatbot()"></i>
+        </div>
+        <div id="chatbotMessages" style="flex: 1; padding: 15px; overflow-y: auto; background: #f9f9f9; display: flex; flex-direction: column; gap: 10px;">
+            <div style="background: #e8f5e9; color: #333; padding: 10px; border-radius: 10px; max-width: 80%; align-self: flex-start; font-size: 14px;">
+                Hi there! I am your AI Nutritionist. Tell me your age, weight, and goals so I can recommend the best items from our menu for you!
+            </div>
+        </div>
+        <div style="display: flex; border-top: 1px solid #ddd; padding: 10px; background: white;">
+            <input type="text" id="chatbotInput" placeholder="Type your message..." style="flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 20px; outline: none; font-size: 14px;" onkeypress="if(event.key === 'Enter') sendChatbotMessage()">
+            <button onclick="sendChatbotMessage()" style="background: #2e7d32; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; margin-left: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        let chatContext = { state: 'INIT' };
+        
+        function formatChatReply(text) {
+            // Replace **text** with <b>text</b>
+            return text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        }
+        
+        function toggleChatbot() {
+            const chatWin = document.getElementById('chatbotWindow');
+            chatWin.style.display = chatWin.style.display === 'none' || chatWin.style.display === '' ? 'flex' : 'none';
+            
+            // Auto trigger INIT on first open
+            if (chatWin.style.display === 'flex' && document.getElementById('chatbotMessages').children.length <= 1 && chatContext.state === 'INIT') {
+                sendChatbotMessage("hi", true);
+            }
+        }
+        
+        async function sendChatbotMessage(overrideMsg = null, silent = false) {
+            const inputField = document.getElementById('chatbotInput');
+            const message = overrideMsg || inputField.value.trim();
+            if(!message) return;
+            
+            const messagesContainer = document.getElementById('chatbotMessages');
+            
+            // Add user message if not silent initial call
+            if (!silent) {
+                messagesContainer.innerHTML += `<div style="background: #2e7d32; color: white; padding: 10px; border-radius: 10px; max-width: 80%; align-self: flex-end; font-size: 14px;">${message}</div>`;
+                inputField.value = '';
+            }
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Add typing indicator
+            const typingId = 'typing-' + Date.now();
+            messagesContainer.innerHTML += `<div id="${typingId}" style="color: #666; font-size: 12px; padding: 5px; align-self: flex-start;"><i>AI is thinking...</i></div>`;
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Get user_name
+            const user = JSON.parse(localStorage.getItem('user'));
+            const userName = user ? user.name : 'Guest';
+            
+            try {
+                const response = await fetch('/api/chatbot', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message: message, context: chatContext, user_name: userName})
+                });
+                const data = await response.json();
+                
+                // Update context
+                if (data.context) {
+                    chatContext = data.context;
+                }
+                
+                document.getElementById(typingId).remove();
+                
+                const formattedReply = formatChatReply(data.reply);
+                messagesContainer.innerHTML += `<div style="background: #e8f5e9; color: #333; padding: 10px; border-radius: 10px; max-width: 80%; align-self: flex-start; font-size: 14px; line-height: 1.4;">${formattedReply}</div>`;
+            } catch(e) {
+                document.getElementById(typingId).remove();
+                messagesContainer.innerHTML += `<div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 10px; max-width: 80%; align-self: flex-start; font-size: 14px;">Error communicating with AI server.</div>`;
+            }
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    </script>
+
+
     <script src="/static/script.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function () {
@@ -117,6 +213,21 @@
             if (!dietPreference) {
                 // Step 1: Show Welcome Popup
                 const welcomePopup = document.getElementById("welcomePopup");
+                
+                // Dynamically set user name from local storage
+                const welcomeTitle = document.getElementById("welcomePopupTitle");
+                if (welcomeTitle) {
+                    try {
+                        const userObj = JSON.parse(localStorage.getItem('user') || '{}');
+                        const displayName = userObj.name ? userObj.name.split(' ')[0] : 'Guest';
+                        if (displayName !== 'Guest') {
+                            welcomeTitle.textContent = `Welcome, ${displayName}!`;
+                        }
+                    } catch (e) {
+                        console.error('Error parsing user data:', e);
+                    }
+                }
+
                 if (welcomePopup) {
                     welcomePopup.style.display = "flex";
                 }
@@ -191,4 +302,5 @@
         });
     </script>
 </body>
+
 </html>

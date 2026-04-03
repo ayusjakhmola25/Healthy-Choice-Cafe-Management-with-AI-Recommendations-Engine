@@ -1,7 +1,6 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,6 +9,7 @@
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
     <div class="layout">
         <aside class="side-nav">
@@ -20,6 +20,13 @@
                     <div class="brand-tag">Healthy Eating Hub</div>
                 </div>
             </div>
+            <nav class="side-links">
+                <a href="/cafeteria" class="side-link"><span>🍽️</span><span>Menu</span></a>
+                <a href="/cart" class="side-link"><span>🛒</span><span>My Cart</span><span class="badge" id="cart-count">0</span></a>
+                <a href="/orders" class="side-link"><span>📦</span><span>My Orders</span></a>
+                <a href="/profile" class="side-link active"><span>👤</span><span>Profile</span></a>
+                <a href="/best-selling" class="side-link"><span>🔥</span><span>Best Selling</span></a>
+            </nav>
             <div class="side-footer">
                 <button class="logout-btn" onclick="logout()">↪ Logout</button>
             </div>
@@ -100,10 +107,13 @@
                             </div>
                         </div>
                         <div class="stat-row" style="margin-top: 15px;">
-                            <div class="small-card" style="width: 100%; background: linear-gradient(135deg, #10b981, #059669); color: white;">
+                            <div class="small-card"
+                                style="width: 100%; background: linear-gradient(135deg, #10b981, #059669); color: white;">
                                 <div class="small-title" style="color: rgba(255,255,255,0.8);">Health Coins</div>
-                                <div class="small-value" id="healthCoinsDisplay" style="color: white; font-size: 28px;">0</div>
-                                <div style="font-size: 12px; margin-top: 5px; color: rgba(255,255,255,0.9);">Earn 10 coins per healthy item</div>
+                                <div class="small-value" id="healthCoinsDisplay" style="color: white; font-size: 28px;">
+                                    0</div>
+                                <div style="font-size: 12px; margin-top: 5px; color: rgba(255,255,255,0.9);">Earn 10
+                                    coins per healthy item</div>
                             </div>
                         </div>
                     </div>
@@ -111,10 +121,22 @@
                     <div class="insights-card">
                         <div class="card-title">Nutrition Insights</div>
                         <div class="stat-grid">
-                            <div class="metric-box"><h5>Total Protein</h5><div class="metric-val" id="totalProtein">0g</div></div>
-                            <div class="metric-box"><h5>Total Carbs</h5><div class="metric-val" id="totalCarbs">0g</div></div>
-                            <div class="metric-box"><h5>Total Fats</h5><div class="metric-val" id="totalFats">0g</div></div>
-                            <div class="metric-box"><h5>Total Calories</h5><div class="metric-val" id="totalCalories">0</div></div>
+                            <div class="metric-box">
+                                <h5>Total Protein</h5>
+                                <div class="metric-val" id="totalProtein">0g</div>
+                            </div>
+                            <div class="metric-box">
+                                <h5>Total Carbs</h5>
+                                <div class="metric-val" id="totalCarbs">0g</div>
+                            </div>
+                            <div class="metric-box">
+                                <h5>Total Fats</h5>
+                                <div class="metric-val" id="totalFats">0g</div>
+                            </div>
+                            <div class="metric-box">
+                                <h5>Total Calories</h5>
+                                <div class="metric-val" id="totalCalories">0</div>
+                            </div>
                         </div>
                         <div class="nutrition-charts" style="margin-top:16px;">
                             <div class="chart-card">
@@ -124,7 +146,8 @@
                                 <canvas id="profileMacroBar"></canvas>
                             </div>
                         </div>
-                        <div style="margin-top:10px;color:#6b7b88;font-size:12px;">Cumulative nutrition from your order history</div>
+                        <div style="margin-top:10px;color:#6b7b88;font-size:12px;">Cumulative nutrition from your order
+                            history</div>
                     </div>
                 </div>
             </section>
@@ -184,9 +207,20 @@
                 document.getElementById("profileNameDisplay").textContent = data.name || "-";
                 document.getElementById("profileEmailDisplay").textContent = data.email || "-";
                 document.getElementById("profileMobileDisplay").textContent = data.mobile || "-";
-                document.getElementById("profileDOBDisplay").textContent = data.dob || "-";
-                document.getElementById("profileGenderDisplay").textContent = data.gender || "-";
                 
+                let dobText = "-";
+                if (data.dob) {
+                    const d = new Date(data.dob);
+                    if (!isNaN(d)) {
+                        dobText = d.toISOString().split('T')[0];
+                    } else {
+                        dobText = data.dob;
+                    }
+                }
+                document.getElementById("profileDOBDisplay").textContent = dobText;
+                
+                document.getElementById("profileGenderDisplay").textContent = data.gender || "-";
+
                 // Show health coins
                 const coinsDiv = document.getElementById("healthCoinsDisplay");
                 if (coinsDiv) {
@@ -238,12 +272,12 @@
                                 backgroundColor: ["#2e7d32", "#7a3b41", "#f39c12"]
                             }]
                         },
-                            options: {
-                                responsive: true,
-                                scales: { y: { beginAtZero: true } }
-                            }
-                        });
-                    }
+                        options: {
+                            responsive: true,
+                            scales: { y: { beginAtZero: true } }
+                        }
+                    });
+                }
 
                 // AI Recommendations
                 if (recoResp && recoResp.ok) {
@@ -281,4 +315,5 @@
         document.addEventListener("DOMContentLoaded", loadProfile);
     </script>
 </body>
+
 </html>

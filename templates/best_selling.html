@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Best Selling - Healthy Cafe</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div class="layout">
+        <aside class="side-nav">
+            <div class="brand">
+                <img src="/static/images/cafelogo.jpeg" alt="Cafe" class="brand-logo">
+                <div class="brand-text">
+                    <div class="brand-name">Healthy Cafe</div>
+                    <div class="brand-tag">Healthy Eating Hub</div>
+                </div>
+            </div>
+            <nav class="side-links">
+                <a href="/cafeteria" class="side-link"><span>🍽️</span><span>Menu</span></a>
+                <a href="/cart" class="side-link"><span>🛒</span><span>My Cart</span><span class="badge"
+                        id="cart-count">0</span></a>
+                <a href="/orders" class="side-link"><span>📦</span><span>My Orders</span></a>
+                <a href="/profile" class="side-link"><span>👤</span><span>Profile</span></a>
+                <a href="/best-selling" class="side-link active"><span>🔥</span><span>Best Selling</span></a>
+            </nav>
+            <div class="side-footer">
+                <button class="logout-btn" onclick="logout()">↪ Logout</button>
+            </div>
+        </aside>
+
+        <main class="content">
+            <header class="page-header">
+                <h1 class="page-title">🔥 Best Selling Foods</h1>
+                <div class="page-subtitle">Discover what other foodies are loving the most!</div>
+            </header>
+
+            <div class="search-row">
+                <input type="text" placeholder="Search popular dishes..." class="search-field" id="popularSearch">
+            </div>
+
+            <h2 class="section-title">Most Popular Items</h2>
+
+            <div class="menu-grid" id="popularMenuGrid">
+                <!-- Menu items will be loaded dynamically by JavaScript -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Add to Cart Confirmation Popup -->
+    <div id="addToCartPopup" class="popup-overlay" style="display: none;">
+        <div class="popup-content">
+            <h2 style="color: #5DADE2;">Confirm this order</h2>
+            <p style="color: #34495E;">Confirm ho isse order se</p>
+            <div class="popup-buttons">
+                <button id="confirmAddBtn" class="popup-btn"><i class="fas fa-check"></i> Confirm</button>
+                <button id="cancelAddBtn" class="popup-btn cancel-btn"><i class="fas fa-times"></i> Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            loadBestSellingItems();
+            updateCartCount();
+
+            // Simple search filter
+            const searchInput = document.getElementById("popularSearch");
+            if(searchInput) {
+                searchInput.addEventListener("input", function(e) {
+                    const text = e.target.value.toLowerCase();
+                    const items = document.querySelectorAll(".menu-item");
+                    items.forEach(item => {
+                        const title = item.querySelector(".item-title").textContent.toLowerCase();
+                        if(title.includes(text)) {
+                            item.style.display = "flex";
+                        } else {
+                            item.style.display = "none";
+                        }
+                    });
+                });
+            }
+        });
+
+        async function loadBestSellingItems() {
+            const menuGrid = document.getElementById("popularMenuGrid");
+            if (!menuGrid) return;
+            menuGrid.innerHTML = '<p style="padding:1rem;color:#6b7280;">Loading popular items...</p>';
+
+            try {
+                const response = await fetch('/api/best-selling');
+                if (!response.ok) throw new Error("Failed to load best selling items");
+
+                let items = await response.json();
+                if (!items || items.length === 0) {
+                    menuGrid.innerHTML = '<p style="padding:1rem;color:#6b7280;">No popular items available yet.</p>';
+                    return;
+                }
+
+                menuGrid.innerHTML = "";
+
+                items.forEach((item, index) => {
+                    const menuItem = document.createElement("div");
+                    menuItem.className = "menu-item menu-card";
+                    const chartId = `nutrition-chart-${index}`;
+
+                    menuItem.innerHTML = `
+                        <div class="image-block" style="position: relative;">
+                            ${index < 3 ? `<div style="position: absolute; top: 10px; left: 10px; background: #e74c3c; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; z-index: 10;">#${index + 1} Best Seller</div>` : ''}
+                            <img src="${item.image_url || "/static/images/default-food.jpg"}" alt="${item.name}" class="item-image">
+                        </div>
+                        <div class="item-details">
+                            <div class="title-rating">
+                                <h3 class="item-title">${item.name}</h3>
+                                <div class="item-rating">
+                                    <span class="star-icon">&#9752;</span> <span>Ordered ${item.total_ordered} times</span>
+                                </div>
+                            </div>
+                            <p class="item-description">${item.description || "A crowd favorite!"}</p>
+                            <div class="nutrition-info">
+                                <div class="nutrition-values">
+                                    <span class="nutrition-item">Protein: ${item.protein || 0}g</span>
+                                    <span class="nutrition-item">Carbs: ${item.carbs || 0}g</span>
+                                    <span class="nutrition-item">Fats: ${item.fats || 0}g</span>
+                                    <span class="nutrition-item">Calories: ${item.calories || 0}</span>
+                                </div>
+                                <div class="nutrition-chart">
+                                    <canvas id="${chartId}" width="100" height="100"></canvas>
+                                </div>
+                            </div>
+                            <p class="item-price">₹${item.price}</p>
+                            <div class="quantity-controls">
+                                <button class="quantity-btn" onclick="decreaseQuantity('${item.id}')">-</button>
+                                <span class="quantity-display" id="quantity-${item.id}">1</span>
+                                <button class="quantity-btn" onclick="increaseQuantity('${item.id}')">+</button>
+                            </div>
+                            <button class="add-to-cart-btn" onclick="showAddToCartConfirmation('${item.id}', '${item.name}', '${item.price}', '${item.image_url || "/static/images/default-food.jpg"}', '${item.protein || 0}', '${item.carbs || 0}', '${item.fats || 0}', '${item.calories || 0}')">Add to Cart</button>
+                        </div>
+                    `;
+
+                    menuGrid.appendChild(menuItem);
+                    setTimeout(() => {
+                        if (typeof createNutritionChart === "function") {
+                            createNutritionChart(
+                                chartId,
+                                parseInt(item.protein || 0),
+                                parseInt(item.carbs || 0),
+                                parseInt(item.fats || 0),
+                                parseInt(item.calories || 0)
+                            );
+                        }
+                    }, 50);
+                });
+
+                updateCartCount();
+            } catch (error) {
+                console.error("Error loading top items:", error);
+                menuGrid.innerHTML = '<p style="padding:1rem;color:#b91c1c;">Unable to load best selling items.</p>';
+            }
+        }
+    </script>
+</body>
+</html>

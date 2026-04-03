@@ -1921,15 +1921,29 @@ async function loadOrders() {
                 metrics: { protein: 0, carbs: 0, fats: 0, calories: 0 },
                 total: parseFloat(o.total_amount || 0)
             })),
-            ...guestOrders.map(o => ({
-                id: `#G${o.id}`,
-                date: o.order_date,
-                status: 'completed',
-                paymentMethod: o.payment_method,
-                items: [],
-                metrics: { protein: 0, carbs: 0, fats: 0, calories: 0 },
-                total: parseFloat(o.total_amount)
-            }))
+            ...guestOrders.map(o => {
+                let parsedItems = [];
+                let parsedMetrics = { protein: 0, carbs: 0, fats: 0, calories: 0 };
+                try {
+                    parsedItems = JSON.parse(o.order_data || '[]');
+                    parsedItems.forEach(item => {
+                        parsedMetrics.protein += (item.protein || 0) * item.quantity;
+                        parsedMetrics.carbs += (item.carbs || 0) * item.quantity;
+                        parsedMetrics.fats += (item.fats || 0) * item.quantity;
+                        parsedMetrics.calories += (item.calories || 0) * item.quantity;
+                    });
+                } catch(e) {}
+                
+                return {
+                    id: `#G${o.id}`,
+                    date: o.order_date,
+                    status: 'completed',
+                    paymentMethod: o.payment_method,
+                    items: parsedItems.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })),
+                    metrics: parsedMetrics,
+                    total: parseFloat(o.total_amount)
+                };
+            })
         ];
 
         // Load localStorage orders too

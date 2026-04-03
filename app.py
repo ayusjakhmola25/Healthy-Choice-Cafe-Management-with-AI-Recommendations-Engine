@@ -1,6 +1,10 @@
 import os
 import sys
 import json
+from dotenv import load_dotenv
+
+load_dotenv()
+
 os.environ['PYTHONIOENCODING'] = 'utf-8'
 import bcrypt
 from flask import Flask, request, jsonify, render_template, session
@@ -24,52 +28,11 @@ if sys.platform == 'win32':
 
 import re
 
-from twilio.rest import Client
 
-account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
-auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-try:
-    if account_sid and auth_token:
-        client = Client(account_sid, auth_token)
-    else:
-        client = None
-except Exception as e:
-    client = None
-    print(f"Twilio Client Init Error: {e}")
 
-TWILIO_WHATSAPP_NUMBER = os.environ.get("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
 
-def send_payment_success(mobile, name):
-    if not client: return
-    msg = f"""Hey {name} 👋
 
-Thanks for visiting *Healthy Cafe* 🥗
 
-Your order is confirmed ✅
-We hope you enjoyed your meal!
-
-See you again soon 💚"""
-    try:
-        client.messages.create(
-            from_=TWILIO_WHATSAPP_NUMBER,
-            body=msg,
-            to=f"whatsapp:+91{mobile}"
-        )
-        print(f"Payment success WhatsApp sent to {mobile}")
-    except Exception as e:
-        print(f"Twilio error (payment success): {e}")
-
-def send_invoice(mobile, pdf_url):
-    if not client: return
-    try:
-        client.messages.create(
-            from_=TWILIO_WHATSAPP_NUMBER,
-            to=f"whatsapp:+91{mobile}",
-            media_url=[pdf_url]
-        )
-        print(f"Invoice WhatsApp sent to {mobile}")
-    except Exception as e:
-        print(f"Twilio error (invoice): {e}")
 
 def validate_password(password):
     """
@@ -387,6 +350,7 @@ def login():
         return jsonify({"error":"Invalid password"}),401
 
     session["user_id"] = user["id"]
+    session["user_name"] = user["name"]
 
     
     ip_address = request.remote_addr
@@ -562,6 +526,35 @@ def get_recommendations(item_id):
         print(f"Error getting recommendations: {e}")
         return jsonify({'success': False, 'error': 'Failed to get recommendations'}), 500
 
+@app.route('/best-selling', methods=['GET'])
+def best_selling_page():
+    return render_template('best_selling.html')
+
+@app.route('/api/best-selling', methods=['GET'])
+def api_best_selling():
+    try:
+        query = """
+        SELECT m.*, SUM(oi.quantity) as total_ordered
+        FROM menu_items m
+        JOIN order_items oi ON m.id = oi.menu_item_id
+        WHERE m.is_active = 1
+        GROUP BY m.id
+        ORDER BY total_ordered DESC
+        LIMIT 10
+        """
+        cursor.execute(query)
+        items = cursor.fetchall()
+
+        # Ensure image_url is full path
+        for item in items:
+            if item.get('image_url') and '/static/images/' not in item['image_url']:
+                item['image_url'] = '/static/images/' + item['image_url'].split('/')[-1]
+
+        return jsonify(items)
+    except Exception as e:
+        print(f"Error in /api/best-selling: {e}")
+        return jsonify([]), 500
+
 @app.route('/generate-invoice', methods=['POST'])
 def generate_invoice():
     data = request.get_json()
@@ -577,142 +570,232 @@ def generate_invoice():
     try:
         # Create Professional PDF
         from reportlab.lib.pagesizes import A4
-        from reportlab.platypus import Image as RLImage
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
         from reportlab.lib.units import inch
-        from reportlab.lib.utils import ImageReader
-
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        
         static_folder = os.path.join(app.root_path, 'static')
         os.makedirs(static_folder, exist_ok=True)
         invoice_id = f"{int(time.time() * 1000)}"
         filename = f"invoice_{invoice_id}.pdf"
         filepath = os.path.join(static_folder, filename)
         
-        doc = SimpleDocTemplate(filepath, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+        doc = SimpleDocTemplate(filepath, pagesize=A4, 
+                                rightMargin=40, leftMargin=40, 
+                                topMargin=120, bottomMargin=60)
+        
         styles = getSampleStyleSheet()
         story = []
         
-        # Adding Image watermark function
-        logo_path = os.path.join(app.root_path, 'static', 'images', 'cafelogo.jpeg')
-        def add_watermark(canvas, doc):
+        # Colors
+        green_theme = colors.HexColor('#2e7d32')
+        light_green = colors.HexColor('#E8F5E9')
+        orange_theme = colors.HexColor('#ff9800')
+        
+        # --- Page background (Header, Footer, Watermark) ---
+        def draw_page_bg(canvas, doc):
             canvas.saveState()
-            if os.path.exists(logo_path):
-                # Try to use PIL to create a transparent version on the fly, otherwise just draw text
-                try:
-                    from PIL import Image as PILImage, ImageEnhance
-                    img = PILImage.open(logo_path).convert('RGBA')
-                    alpha = img.split()[3]
-                    alpha = ImageEnhance.Brightness(alpha).enhance(0.1)
-                    img.putalpha(alpha)
-                    temp_wm = os.path.join(app.root_path, 'static', 'images', f'temp_wm_{invoice_id}.png')
-                    img.save(temp_wm, 'PNG')
-                    
-                    canvas.drawImage(temp_wm, (A4[0]-300)/2, (A4[1]-300)/2, width=300, height=300, mask='auto')
-                    os.remove(temp_wm)
-                except Exception:
-                    canvas.setFont('Helvetica-Bold', 60)
-                    canvas.setFillColorRGB(0.9, 0.9, 0.9)
-                    canvas.drawCentredString(A4[0]/2, A4[1]/2, "HEALTHY CAFE")
+            
+            # Header Block
+            canvas.setFillColor(green_theme)
+            canvas.rect(0, A4[1] - 85, A4[0], 85, fill=1, stroke=0)
+            
+            # Left Header Text
+            canvas.setFillColor(colors.white)
+            canvas.setFont("Helvetica-Bold", 26)
+            canvas.drawString(40, A4[1] - 40, "Healthy Cafe Zone")
+            canvas.setFont("Helvetica", 10)
+            canvas.drawString(42, A4[1] - 58, "Healthy Eating Hub • Taste the Difference")
+            
+            # Right Orange Header Badge
+            canvas.setFillColor(orange_theme)
+            badge_width = 130
+            badge_height = 45
+            canvas.rect(A4[0] - 40 - badge_width, A4[1] - 65, badge_width, badge_height, fill=1, stroke=0)
+            canvas.setFillColor(colors.white)
+            canvas.setFont("Helvetica-Bold", 16)
+            canvas.drawCentredString(A4[0] - 40 - badge_width/2, A4[1] - 65 + 16, "INVOICE")
+            
+            # Watermark
+            canvas.setFillColor(green_theme)
+            canvas.setFont("Helvetica-Bold", 80)
+            canvas.setFillAlpha(0.12)
+            canvas.translate(A4[0]/2, A4[1]/2 - 50)
+            canvas.rotate(35)
+            canvas.drawCentredString(0, 180, "HEALTHY CAFE ZONE")
+            canvas.drawCentredString(0, 0, "HEALTHY CAFE ZONE")
+            canvas.drawCentredString(0, -180, "HEALTHY CAFE ZONE")
+            canvas.rotate(-35)
+            canvas.translate(-A4[0]/2, -(A4[1]/2 - 50))
+            
+            # Footer Strip
+            canvas.setFillAlpha(1)
+            canvas.setFillColor(green_theme)
+            canvas.rect(0, 0, A4[0], 25, fill=1, stroke=0)
+            canvas.setFillColor(colors.white)
+            canvas.setFont("Helvetica", 7)
+            footer_text = "Healthy Cafe Zone  •  Connaught Place, New Delhi  •  +91-98765-43210  •  info@healthycafezone.in"
+            canvas.drawCentredString(A4[0]/2, 8, footer_text)
+            
             canvas.restoreState()
 
-        # Header Section (Logo + Cafe Details)
-        header_data = []
-        cafe_info = [
-            Paragraph("<b>Healthy Cafe</b>", styles['Heading1']),
-            Paragraph("<i>Fresh • Healthy • Delicious</i>", styles['Normal']),
-            Paragraph("123 Cafe Street, Food City, FC 12345", styles['Normal']),
-            Paragraph("Phone: +91 9876543210 | Email: hello@healthycafe.com", styles['Normal'])
-        ]
+        # --- Info Row ---
+        inv_no = f"HCZ-2025-{invoice_id[-4:]}"
+        date_str = datetime.now().strftime('%d March %Y')
         
-        if os.path.exists(logo_path):
-            logo = RLImage(logo_path, width=1.5*inch, height=1.5*inch)
-            header_data = [[logo, cafe_info]]
-        else:
-            header_data = [["", cafe_info]]
-            
-        header_table = Table(header_data, colWidths=[2*inch, 4.5*inch])
-        header_table.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('ALIGN', (1,0), (1,0), 'LEFT')
+        info_data = [
+            [
+                Paragraph(f"<font size=8 color=gray>Invoice No.</font><br/><font size=10><b>{inv_no}</b></font>", styles['Normal']),
+                Paragraph(f"<font size=8 color=gray>Invoice Date</font><br/><font size=10><b>{date_str}</b></font>", styles['Normal']),
+                Paragraph(f"<font size=8 color=gray>Due Date</font><br/><font size=10><b>{date_str}</b></font>", styles['Normal']),
+                Paragraph(f"<font size=8 color=gray>Order ID</font><br/><font size=10><b>ORD-{invoice_id}</b></font>", styles['Normal']),
+            ]
+        ]
+        info_table = Table(info_data, colWidths=[1.8*inch, 1.8*inch, 1.8*inch, 1.8*inch])
+        info_table.setStyle(TableStyle([
+            ('LINEBELOW', (0,0), (-1,-1), 1, colors.lightgrey),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
         ]))
-        story.append(header_table)
+        story.append(info_table)
         story.append(Spacer(1, 20))
         
-        # Invoice Details
-        invoice_number = f"CZ{invoice_id}"
-        details_data = [
-            [Paragraph("<b>Invoice To:</b>", styles['Normal']), Paragraph(f"<b>Invoice #:</b> {invoice_number}", styles['Normal'])],
-            [Paragraph(f"Name: {customer_name or 'Walk-in Customer'}", styles['Normal']), Paragraph(f"Date: {datetime.now().strftime('%d %b %Y')}", styles['Normal'])],
-            [Paragraph(f"Mobile: {customer_mobile or 'N/A'}", styles['Normal']), Paragraph(f"Time: {datetime.now().strftime('%I:%M %p')}", styles['Normal'])]
+        # --- Billed From & Billed To ---
+        def get_badge(text):
+            t = Table([[text]], colWidths=[1.4*inch])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (0,0), green_theme),
+                ('TEXTCOLOR', (0,0), (0,0), colors.white),
+                ('ALIGN', (0,0), (0,0), 'CENTER'),
+                ('FONTNAME', (0,0), (0,0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0,0), (0,0), 8),
+                ('BOTTOMPADDING', (0,0), (0,0), 3),
+                ('TOPPADDING', (0,0), (0,0), 3),
+                ('LEFTPADDING', (0,0), (0,0), 0),
+                ('RIGHTPADDING', (0,0), (0,0), 0),
+            ]))
+            return t
+        
+        billed_data = [
+            [get_badge("BILLED FROM"), get_badge("BILLED TO")],
+            [
+                Paragraph("<b>Healthy Cafe Zone</b><br/><font size=9>Connaught Place, New Delhi - 110001<br/>Phone: +91-98765-43210<br/>Email: info@healthycafezone.in<br/>GSTIN: 07AABCH1234A1Z5</font>", styles['Normal']),
+                Paragraph(f"<b>{customer_name or 'Walk-in Customer'}</b><br/><font size=9>B-42, Lajpat Nagar, New Delhi - 110024<br/>Phone: {customer_mobile or 'N/A'}<br/>Payment: {payment_method}</font>", styles['Normal'])
+            ]
         ]
-        details_table = Table(details_data, colWidths=[3.25*inch, 3.25*inch])
-        details_table.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'LEFT')]))
-        story.append(details_table)
-        story.append(Spacer(1, 20))
+        billed_table = Table(billed_data, colWidths=[3.6*inch, 3.6*inch])
+        billed_table.setStyle(TableStyle([
+            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('TOPPADDING', (0,1), (-1,1), 8),
+        ]))
+        story.append(billed_table)
+        story.append(Spacer(1, 25))
         
-        # Table Section
-        table_data = [['Item Name', 'Quantity', 'Price', 'Total']]
-        for item in order_items:
+        # --- Sales Table ---
+        table_data = [['#', 'Item Name', 'Category', 'Qty', 'Unit Price', 'Amount']]
+        for i, item in enumerate(order_items):
+            cat = "Healthy"
+            if 'fries' in item['name'].lower() or 'burger' in item['name'].lower():
+                cat = "Snack"
+            elif 'chicken' in item['name'].lower():
+                cat = "Non-Veg"
+            elif 'paneer' in item['name'].lower() or 'dosa' in item['name'].lower():
+                cat = "Veg"
+                
             table_data.append([
+                str(i + 1),
                 item['name'],
+                cat,
                 str(item['quantity']),
-                f"Rs. {item['price']}",
-                f"Rs. {(item['price'] * item['quantity']):.2f}"
+                f"Rs.{item['price']:.2f}",
+                f"Rs.{(item['price'] * item['quantity']):.2f}"
             ])
             
-        # Green theme
-        green_color = colors.HexColor('#28a745')
-        light_gray = colors.HexColor('#f8f9fa')
+        col_widths = [0.4*inch, 2.5*inch, 1.2*inch, 0.7*inch, 1.2*inch, 1.2*inch]
+        invoice_table = Table(table_data, colWidths=col_widths)
         
-        invoice_table = Table(table_data, colWidths=[3.25*inch, 1*inch, 1.125*inch, 1.125*inch])
         invoice_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), green_color),
+            ('BACKGROUND', (0, 0), (-1, 0), green_theme),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),  # Left align item names
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+            ('ALIGN', (1, 1), (1, -1), 'LEFT'),
+            ('ALIGN', (2, 1), (2, -1), 'LEFT'),
+            ('ALIGN', (3, 1), (3, -1), 'CENTER'),
+            ('ALIGN', (4, 1), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 11),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-            ('TOPPADDING', (0, 0), (-1, 0), 10),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, light_gray]),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
-            ('BOX', (0, 0), (-1, -1), 1, green_color)
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+            ('TOPPADDING', (0, 1), (-1, -1), 6),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, light_green]),
+            ('LINEBELOW', (0, -1), (-1, -1), 1, colors.lightgrey),
         ]))
         story.append(invoice_table)
-        story.append(Spacer(1, 15))
-        
-        # Pricing Section
-        subtotal = float(total_amount) - 50  # Delivery fee
-        gst_amount = subtotal * 0.18
-        delivery_fee = 50
-        
-        pricing_data = [
-            ["", "Subtotal:", f"Rs. {subtotal:.2f}"],
-            ["", "GST (18%):", f"Rs. {gst_amount:.2f}"],
-            ["", "Delivery Fee:", f"Rs. {delivery_fee:.2f}"],
-            ["", "Final Total:", f"Rs. {total_amount}"]
-        ]
-        pricing_table = Table(pricing_data, colWidths=[3.5*inch, 1.5*inch, 1.5*inch])
-        pricing_table.setStyle(TableStyle([
-            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
-            ('ALIGN', (2, 0), (2, -1), 'RIGHT'),
-            ('FONTNAME', (1, 3), (2, 3), 'Helvetica-Bold'),
-            ('BACKGROUND', (1, 3), (2, 3), colors.HexColor('#e8f5e9')),  # Highlight final total
-            ('PADDING', (1, 3), (2, 3), 8)
-        ]))
-        story.append(pricing_table)
-        story.append(Spacer(1, 40))
-        
-        # Footer Section
-        centered_style = ParagraphStyle(name='Centered', parent=styles['Normal'], alignment=1)
-        story.append(Paragraph(f"Payment Method: <b>{payment_method}</b>", centered_style))
         story.append(Spacer(1, 20))
         
-        story.append(Paragraph("<b>Thank you for visiting Healthy Cafe!</b>", centered_style))
-        story.append(Paragraph("<i>Stay healthy, eat fresh</i>", centered_style))
+        # --- Summary Section ---
+        subtotal = float(total_amount)
+        discount = subtotal * 0.05
+        taxable = subtotal - discount
+        gst = taxable * 0.05
+        final_total = taxable + gst
         
-        # Build document
-        doc.build(story, onFirstPage=add_watermark, onLaterPages=add_watermark)
+        summary_data = [
+            ["Subtotal", f"Rs.{subtotal:.2f}"],
+            ["Loyalty Discount (5%)", f"-Rs.{discount:.2f}"],
+            ["Taxable Amount", f"Rs.{taxable:.2f}"],
+            ["GST (5%)", f"Rs.{gst:.2f}"],
+            ["TOTAL AMOUNT", f"Rs.{final_total:.2f}"]
+        ]
+        summary_table = Table(summary_data, colWidths=[2.2*inch, 1.4*inch])
+        summary_table.setStyle(TableStyle([
+            ('ALIGN', (0,0), (0,-1), 'LEFT'),
+            ('ALIGN', (1,0), (1,-1), 'RIGHT'),
+            ('TEXTCOLOR', (0,0), (-1,-2), colors.dimgrey),
+            ('BACKGROUND', (0,-1), (-1,-1), green_theme),
+            ('TEXTCOLOR', (0,-1), (-1,-1), colors.white),
+            ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+            ('PADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,-1), (-1,-1), 6),
+            ('TOPPADDING', (0,-1), (-1,-1), 6),
+        ]))
+        
+        wrap_table = Table([["", summary_table]], colWidths=[3.6*inch, 3.6*inch])
+        wrap_table.setStyle(TableStyle([('ALIGN', (1,0), (1,0), 'RIGHT')]))
+        story.append(wrap_table)
+        story.append(Spacer(1, 30))
+        
+        # --- Payment details bottom ---
+        paid_data = [
+            [
+                Paragraph('<font size=10 color="#2e7d32"><b>✓ PAID</b></font>', styles['Normal']),
+                Paragraph(f"<font size=8>Payment Mode: {payment_method}<br/>Transaction ID: TXN{invoice_id}001</font>", styles['Normal'])
+            ]
+        ]
+        paid_table = Table(paid_data, colWidths=[1.2*inch, 3.5*inch])
+        paid_table.setStyle(TableStyle([
+            ('BOX', (0,0), (0,0), 1, green_theme),
+            ('ROUNDEDCORNERS', [3, 3, 3, 3]), # If reportlab supports it otherwise ignored
+            ('ALIGN', (0,0), (0,0), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ]))
+        story.append(paid_table)
+        story.append(Spacer(1, 30))
+        
+        # --- Footer Thank You ---
+        centered = ParagraphStyle(name='Centered', parent=styles['Normal'], alignment=1, textColor=green_theme)
+        story.append(Paragraph("<b>Thank you for dining with us!</b>", centered))
+        story.append(Spacer(1, 5))
+        story.append(Paragraph("<font size=8 color=gray>Your health is our priority. Visit again for more healthy delights.</font>", centered))
+        
+        # Build Document
+        doc.build(story, onFirstPage=draw_page_bg, onLaterPages=draw_page_bg)
         
         # Read PDF as base64 for frontend response
         with open(filepath, 'rb') as f:
@@ -720,14 +803,10 @@ def generate_invoice():
         import base64
         pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
         
-        pdf_url = request.host_url.rstrip('/') + f'/static/{filename}'
-        if customer_mobile:
-            send_invoice(customer_mobile, pdf_url)
-
         return jsonify({
             'success': True,
             'pdf': pdf_base64,
-            'invoiceNumber': f"CZ{int(time.time() * 1000)}"
+            'invoiceNumber': inv_no
         })
 
     except Exception as e:
@@ -870,8 +949,8 @@ def save_order():
         print(f"Warning persisting save_order to DB: {e}")
 
     print(f"Order completed: {name}, {mobile}, {email}, {total_amount}, diet: {diet_preference}, user_id: {user_id}, order_id: {order_id}")
-    if mobile:
-        send_payment_success(mobile, name or "Customer")
+    # if mobile:
+    #     send_payment_success(mobile, name or "Customer")
 
     return jsonify({'success': True, 'message': 'Payment successful', 'order_id': order_id})
 
@@ -921,9 +1000,8 @@ def upi_payment():
     except Exception as e:
         print(f"Warning persisting upi_payment to DB: {e}")
 
-    # 3. Trigger WhatsApp Payment Success Message
-    if whatsapp_mobile:
-        send_payment_success(whatsapp_mobile, name or "Customer")
+    # if whatsapp_mobile:
+    #     send_payment_success(whatsapp_mobile, name or "Customer")
 
     return jsonify({
         'success': True, 
@@ -1047,7 +1125,7 @@ def get_user_stats_api():
         
     user_id = user['id']
 
-    cursor.execute("SELECT COUNT(*) as total FROM orders WHERE user_id=%s AND order_status='DELIVERED'", (user_id,))
+    cursor.execute("SELECT COUNT(*) as total FROM orders WHERE user_id=%s AND order_status IN ('DELIVERED', 'PAID', 'COD_CONFIRMED')", (user_id,))
     total_orders = cursor.fetchone()['total'] or 0
 
     if total_orders > 0:
@@ -1060,7 +1138,7 @@ def get_user_stats_api():
             FROM order_items oi
             JOIN orders o ON oi.order_id = o.id
             JOIN menu_items mi ON oi.menu_item_id = mi.id
-            WHERE o.user_id=%s AND o.order_status='DELIVERED'
+            WHERE o.user_id=%s AND o.order_status IN ('DELIVERED', 'PAID', 'COD_CONFIRMED')
         """, (user_id,))
         macros = cursor.fetchone()
 
@@ -1079,7 +1157,7 @@ def get_user_stats_api():
             FROM order_items oi
             JOIN orders o ON oi.order_id = o.id
             JOIN menu_items mi ON oi.menu_item_id = mi.id
-            WHERE o.user_id=%s AND o.order_status='DELIVERED'
+            WHERE o.user_id=%s AND o.order_status IN ('DELIVERED', 'PAID', 'COD_CONFIRMED')
             GROUP BY mi.diet_type
             ORDER BY c DESC
             LIMIT 1
@@ -1127,6 +1205,146 @@ def get_user_recommendations_api():
 @app.route('/welcome', methods=['GET'])
 def welcome():
     return jsonify({'message': 'Welcome to Cafe Zone!'})
+
+@app.route('/api/chatbot', methods=['POST'])
+def chatbot_api():
+    data = request.json
+    user_message = data.get('message', '').strip().lower()
+    context = data.get('context', {})
+    user_name = data.get('user_name', 'Guest')
+    
+    state = context.get('state', 'INIT')
+    
+    import re as re_mod
+    
+    if state == 'INIT':
+        reply = f"Hi **{user_name}**! I am your AI Nutritionist. 🤖<br><br>I'll help you find the best food for your health. Let's start with your **age**. How old are you?"
+        context['state'] = 'WAIT_AGE'
+        return jsonify({"reply": reply, "context": context})
+        
+    elif state == 'WAIT_AGE':
+        numbers = re_mod.findall(r'\d+', user_message)
+        if numbers:
+            context['age'] = int(numbers[0])
+            reply = f"Got it, {context['age']} years old.<br><br>Now, what is your **weight** (in kg)?"
+            context['state'] = 'WAIT_WEIGHT'
+        else:
+            reply = "I didn't catch that. Please tell me your age in numbers. (e.g., 22)"
+        return jsonify({"reply": reply, "context": context})
+        
+    elif state == 'WAIT_WEIGHT':
+        numbers = re_mod.findall(r'\d+\.?\d*', user_message)
+        if numbers:
+            context['weight'] = float(numbers[0])
+            reply = f"Perfect, {context['weight']} kg.<br><br>One last question: Do you eat **oily / fried food** regularly? (yes / no)"
+            context['state'] = 'WAIT_OILY'
+        else:
+            reply = "I didn't catch that. Please tell me your weight in numbers. (e.g., 65)"
+        return jsonify({"reply": reply, "context": context})
+        
+    elif state == 'WAIT_OILY':
+        oily_pref = 'no' if 'no' in user_message else 'yes'
+        context['oily'] = oily_pref
+        
+        # Generate recommendations based on the collected stats
+        age = context.get('age', 25)
+        weight = context.get('weight', 65)
+        
+        avg_height_m = 1.68
+        bmi = weight / (avg_height_m ** 2)
+        
+        # Decide the strategy
+        if bmi < 18.5:
+            goal = "gain weight"
+            sort_key = 'calories'
+            sort_reverse = True
+        elif bmi < 25:
+            goal = "maintain healthy weight"
+            sort_key = 'protein'
+            sort_reverse = True
+        else:
+            goal = "lose weight"
+            sort_key = 'calories'
+            sort_reverse = False
+            
+        # Fetch items from DB
+        menu_items_list = []
+        try:
+            conn = db_pool.get_connection()
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT name, price, protein, carbs, fats, calories, diet_type FROM menu_items WHERE is_active = 1")
+            menu_items_list = cur.fetchall()
+            cur.close()
+            conn.close()
+        except:
+            pass
+            
+        if not menu_items_list:
+            return jsonify({"reply": "I'm having trouble fetching the menu right now. Please try again later.", "context": context})
+            
+        # Deduplicate items by name to avoid showing double food items
+        unique_items = {}
+        for item in menu_items_list:
+            unique_items[item['name'].lower()] = item
+        menu_items_list = list(unique_items.values())
+            
+        # If user avoids oily food, filter out high fat items
+        if oily_pref == 'no':
+            menu_items_list = [i for i in menu_items_list if float(i.get('fats') or 0) < 15]
+            if not menu_items_list: # fallback
+                menu_items_list = [{"name": "Healthy Salad", "calories": 150, "protein": 10}, {"name": "Fruit Bowl", "calories": 120, "protein": 5}]
+                
+        sorted_items = sorted(menu_items_list, key=lambda x: float(x.get(sort_key, 0) or 0), reverse=sort_reverse)
+        
+        import random
+        top_pool = sorted_items[:12]
+        if len(top_pool) > 4:
+            top_items = random.sample(top_pool, 4)
+        else:
+            top_items = top_pool
+        
+        # Save recommendations to context so we can validate their pick
+        context['recommendations'] = [i['name'].lower() for i in top_items]
+        
+        reply = f"📊 **Profile:** Age {age}, Weight {weight}kg, Eats Oily: {oily_pref.title()}<br><br>"
+        reply += f"Since you want to **{goal}**, here are some great items from our menu:<br><br>"
+        
+        for item in top_items:
+            reply += f"🍽️ **{item['name']}** <br> <span style='font-size:12px;color:#666;'>Cal: {item.get('calories',0)} | Protein: {item.get('protein',0)}g</span><br>"
+            
+        reply += "<br>Which of these foods sounds best to you? Let me know and I'll tell you if it's the perfect match!"
+        context['state'] = 'CONFIRM_SELECTION'
+        
+        return jsonify({"reply": reply, "context": context})
+        
+    elif state == 'CONFIRM_SELECTION':
+        # Check which item the user picked
+        picked_item = user_message
+        age = context.get('age', 25)
+        weight = context.get('weight', 65)
+        
+        reply = f"You selected **{picked_item.title()}**!<br><br>"
+        
+        bmi = weight / (1.68 ** 2)
+        if bmi < 18.5:
+            reply += "This is an excellent choice! It is rich in calories and will give your body the exact energy it needs to build a healthy weight safely. 😊"
+        elif bmi < 25:
+            reply += "Great choice! This is perfectly balanced for your age and weight, providing a steady source of protein to keep you active and healthy. 💪"
+        else:
+            reply += "Awesome selection! This is a relatively lighter option that aligns well with your weight goals, keeping you full without excess calories. 🥗"
+            
+        reply += "<br><br>Feel free to say 'hi' again if you want to restart!"
+        context['state'] = 'DONE' # End of flow
+        
+        return jsonify({"reply": reply, "context": context})
+        
+    elif state == 'DONE':
+        # Restart
+        context['state'] = 'INIT'
+        return chatbot_api()
+    
+    return jsonify({"reply": "I'm not sure what you mean.", "context": context})
+
 
 @app.route('/cafeteria')
 def cafeteria():
