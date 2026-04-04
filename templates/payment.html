@@ -99,15 +99,416 @@
                 </div>
                 <button type="button" class="cod-btn" onclick="processCodPayment()">Confirm Cash on Delivery</button>
             </div>
-            <div id="upi-payment" class="upi-payment" style="display: none; background: #fdfdfd; border: 1px solid #eaeaea; border-radius: 8px; padding: 20px; margin-top: 20px;">
-                <h3>UPI / Google Pay</h3>
-                <p style="color: #666; margin-bottom: 15px; font-size: 14px;">Enter your mobile number to receive the invoice on WhatsApp and complete the payment.</p>
-                <div class="form-group" style="margin-bottom: 20px;">
-                    <label for="upiMobile" style="display: block; font-weight: 600; margin-bottom: 8px;">WhatsApp Mobile Number</label>
-                    <input type="text" id="upiMobile" placeholder="e.g. 9876543210" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px;" required>
-                </div>
-                <button type="button" class="payment-btn" onclick="processUpiPayment()" style="width: 100%; padding: 12px; border-radius: 6px; background-color: #27ae60; color: white; border: none; font-weight: 600; cursor: pointer;">Pay via UPI / Google Pay</button>
+            <div id="upi-payment" class="upi-payment" style="display:none;">
+
+    <style>
+        .otp-wrapper {
+            background: #f8fff8;
+            border: 1.5px solid #c8e6c9;
+            border-radius: 14px;
+            padding: 28px 24px;
+            margin-top: 10px;
+        }
+        .otp-wrapper h3 {
+            color: #1b5e20;
+            font-size: 18px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .otp-wrapper p.subtitle {
+            color: #6b7b6b;
+            font-size: 13px;
+            margin-bottom: 22px;
+        }
+        .otp-step {
+            display: none;
+        }
+        .otp-step.active {
+            display: block;
+        }
+        .otp-input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .otp-input-row input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1.5px solid #c8e6c9;
+            border-radius: 10px;
+            font-size: 15px;
+            outline: none;
+            transition: border 0.2s;
+        }
+        .otp-input-row input:focus {
+            border-color: #2e7d32;
+        }
+        .otp-btn {
+            padding: 12px 22px;
+            background: #2e7d32;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.2s;
+        }
+        .otp-btn:hover { background: #1b5e20; }
+        .otp-btn:disabled {
+            background: #a5d6a7;
+            cursor: not-allowed;
+        }
+        .otp-boxes {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .otp-boxes input {
+            width: 48px;
+            height: 54px;
+            text-align: center;
+            font-size: 22px;
+            font-weight: 800;
+            border: 2px solid #c8e6c9;
+            border-radius: 10px;
+            outline: none;
+            transition: border 0.2s;
+            color: #1b5e20;
+        }
+        .otp-boxes input:focus {
+            border-color: #2e7d32;
+            background: #f1f8f1;
+        }
+        .otp-msg {
+            font-size: 13px;
+            margin-top: 10px;
+            min-height: 20px;
+            font-weight: 600;
+        }
+        .otp-msg.error   { color: #c62828; }
+        .otp-msg.success { color: #2e7d32; }
+        .resend-row {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #6b7b6b;
+        }
+        .resend-row span {
+            color: #2e7d32;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        .resend-row span.disabled {
+            color: #a5d6a7;
+            cursor: not-allowed;
+            text-decoration: none;
+        }
+        .verified-box {
+            background: #e8f5e9;
+            border: 1.5px solid #a5d6a7;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        .verified-box .tick {
+            font-size: 40px;
+            margin-bottom: 8px;
+        }
+        .verified-box h4 {
+            color: #1b5e20;
+            font-size: 16px;
+            margin: 0 0 6px 0;
+        }
+        .verified-box p {
+            color: #6b7b6b;
+            font-size: 13px;
+            margin: 0 0 16px 0;
+        }
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 13px 28px;
+            background: linear-gradient(135deg, #2e7d32, #1b5e20);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+        .download-btn:hover { opacity: 0.9; }
+        .timer-badge {
+            display: inline-block;
+            background: #fff3e0;
+            color: #e65100;
+            border: 1px solid #ffcc80;
+            border-radius: 20px;
+            padding: 3px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            margin-left: 10px;
+        }
+    </style>
+
+    <div class="otp-wrapper">
+        <h3>📱 UPI / Google Pay</h3>
+        <p class="subtitle">Enter your mobile number → Get OTP → Verify → Download Invoice</p>
+
+        <!-- STEP 1: Enter Mobile -->
+        <div class="otp-step active" id="step-mobile">
+            <label style="font-weight:700; color:#1b5e20; display:block; margin-bottom:8px;">
+                Mobile Number
+            </label>
+            <div class="otp-input-row">
+                <input type="tel" id="upiMobile" placeholder="10-digit mobile number" maxlength="10">
+                <button class="otp-btn" id="sendOtpBtn" onclick="sendOTP()">Send OTP</button>
             </div>
+            <div class="otp-msg" id="mobileMsg"></div>
+        </div>
+
+        <!-- STEP 2: Enter OTP -->
+        <div class="otp-step" id="step-otp">
+            <label style="font-weight:700; color:#1b5e20; display:block; margin-bottom:14px;">
+                Enter OTP
+                <span class="timer-badge" id="timerBadge">5:00</span>
+            </label>
+            <div class="otp-boxes">
+                <input type="text" maxlength="1" class="otp-digit" id="d1" oninput="otpDigit(this,'d2')">
+                <input type="text" maxlength="1" class="otp-digit" id="d2" oninput="otpDigit(this,'d3')" onkeydown="otpBack(this,event,'d1')">
+                <input type="text" maxlength="1" class="otp-digit" id="d3" oninput="otpDigit(this,'d4')" onkeydown="otpBack(this,event,'d2')">
+                <input type="text" maxlength="1" class="otp-digit" id="d4" oninput="otpDigit(this,'d5')" onkeydown="otpBack(this,event,'d3')">
+                <input type="text" maxlength="1" class="otp-digit" id="d5" oninput="otpDigit(this,'d6')" onkeydown="otpBack(this,event,'d4')">
+                <input type="text" maxlength="1" class="otp-digit" id="d6" oninput="otpDigit(this,null)"  onkeydown="otpBack(this,event,'d5')">
+            </div>
+            <button class="otp-btn" id="verifyOtpBtn" onclick="verifyOTP()">✓ Verify OTP</button>
+            <div class="otp-msg" id="otpMsg"></div>
+            <div class="resend-row">
+                Didn't get OTP?
+                <span id="resendLink" class="disabled" onclick="resendOTP()">Resend OTP</span>
+            </div>
+        </div>
+
+        <!-- STEP 3: Verified → Download -->
+        <div class="otp-step" id="step-done">
+            <div class="verified-box">
+                <div class="tick">✅</div>
+                <h4>Mobile Verified Successfully!</h4>
+                <p>Your payment is confirmed. Download your invoice below.</p>
+                <button class="download-btn" onclick="downloadInvoice()">
+                    ⬇ Download Invoice
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+// ═══════════════ OTP FLOW ═══════════════
+
+let upiOtpTimerInterval = null;
+let verifiedMobile   = null;
+
+function showStep(id) {
+    ['step-mobile','step-otp','step-done'].forEach(s => {
+        document.getElementById(s).classList.remove('active');
+    });
+    document.getElementById(id).classList.add('active');
+}
+
+function setMsg(id, text, type) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className   = 'otp-msg ' + type;
+}
+
+// ── Send OTP ─────────────────────────────
+async function sendOTP() {
+    const mobile = document.getElementById('upiMobile').value.trim();
+    const btn    = document.getElementById('sendOtpBtn');
+
+    if (!/^\d{10}$/.test(mobile)) {
+        setMsg('mobileMsg', '⚠ Please enter a valid 10-digit mobile number.', 'error');
+        return;
+    }
+
+    btn.disabled    = true;
+    btn.textContent = 'Sending...';
+    setMsg('mobileMsg', '', '');
+
+    try {
+        const resp = await fetch('/send-otp', {
+            method:  'POST',
+            headers: {'Content-Type': 'application/json'},
+            body:    JSON.stringify({ mobile })
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+            verifiedMobile = mobile;
+
+            // OTP screen pe dikhao
+            setMsg('mobileMsg', `✅ Your OTP is: ${data.otp}`, 'success');
+
+            setTimeout(() => {
+                showStep('step-otp');
+                document.getElementById('d1').focus();
+                startUpiTimer(300);
+            }, 1500);
+        } else {
+            setMsg('mobileMsg', '✗ ' + data.message, 'error');
+            btn.disabled    = false;
+            btn.textContent = 'Send OTP';
+        }
+    } catch(e) {
+        setMsg('mobileMsg', '✗ Network error. Please try again.', 'error');
+        btn.disabled    = false;
+        btn.textContent = 'Send OTP';
+    }
+}
+
+// ── OTP digit navigation ──────────────────
+function otpDigit(el, nextId) {
+    el.value = el.value.replace(/[^0-9]/g,'');
+    if (el.value && nextId) document.getElementById(nextId).focus();
+}
+function otpBack(el, e, prevId) {
+    if (e.key === 'Backspace' && !el.value) document.getElementById(prevId).focus();
+}
+
+// ── Verify OTP ───────────────────────────
+async function verifyOTP() {
+    const digits = ['d1','d2','d3','d4','d5','d6'].map(id => document.getElementById(id).value).join('');
+    const btn    = document.getElementById('verifyOtpBtn');
+
+    if (digits.length < 6) {
+        setMsg('otpMsg', '⚠ Please enter all 6 digits.', 'error');
+        return;
+    }
+
+    btn.disabled    = true;
+    btn.textContent = 'Verifying...';
+    setMsg('otpMsg', '', '');
+
+    try {
+        const resp = await fetch('/verify-otp', {
+            method:  'POST',
+            headers: {'Content-Type': 'application/json'},
+            body:    JSON.stringify({ mobile: verifiedMobile, otp: digits })
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+            clearInterval(upiOtpTimerInterval);
+            showStep('step-done');
+        } else {
+            setMsg('otpMsg', '✗ ' + data.message, 'error');
+            btn.disabled    = false;
+            btn.textContent = '✓ Verify OTP';
+            ['d1','d2','d3','d4','d5','d6'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('d1').focus();
+        }
+    } catch(e) {
+        setMsg('otpMsg', '✗ Network error. Please try again.', 'error');
+        btn.disabled    = false;
+        btn.textContent = '✓ Verify OTP';
+    }
+}
+
+// ── Resend OTP ───────────────────────────
+async function resendOTP() {
+    const link = document.getElementById('resendLink');
+    if (link.classList.contains('disabled')) return;
+
+    ['d1','d2','d3','d4','d5','d6'].forEach(id => document.getElementById(id).value = '');
+    setMsg('otpMsg', 'Resending OTP...', '');
+    link.classList.add('disabled');
+
+    const resp = await fetch('/send-otp', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify({ mobile: verifiedMobile })
+    });
+    const data = await resp.json();
+    if (data.success) {
+        setMsg('otpMsg', '✓ OTP resent successfully!', 'success');
+        startUpiTimer(300);
+        document.getElementById('d1').focus();
+    } else {
+        setMsg('otpMsg', '✗ ' + data.message, 'error');
+    }
+}
+
+// ── Countdown Timer ──────────────────────
+function startUpiTimer(seconds) {
+    const badge    = document.getElementById('timerBadge');
+    const resend   = document.getElementById('resendLink');
+    resend.classList.add('disabled');
+    clearInterval(upiOtpTimerInterval);
+    let remaining  = seconds;
+
+    upiOtpTimerInterval = setInterval(() => {
+        const m = String(Math.floor(remaining / 60)).padStart(1,'0');
+        const s = String(remaining % 60).padStart(2,'0');
+        badge.textContent = `${m}:${s}`;
+        remaining--;
+        if (remaining < 0) {
+            clearInterval(upiOtpTimerInterval);
+            badge.textContent = 'Expired';
+            badge.style.background = '#fce4ec';
+            badge.style.color      = '#c62828';
+            resend.classList.remove('disabled');
+        }
+    }, 1000);
+}
+
+// ── Download Invoice ─────────────────────
+async function downloadInvoice() {
+    // Get order data from localStorage / cart
+    const cart  = JSON.parse(localStorage.getItem('cart') || '[]');
+    const user  = JSON.parse(localStorage.getItem('user') || '{}');
+    const total = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+
+    const payload = {
+        orderItems:     cart,
+        totalAmount:    total,
+        paymentMethod:  'UPI / Google Pay',
+        customerName:   user.name  || 'Customer',
+        customerMobile: verifiedMobile,
+        customerEmail:  user.email || '',
+    };
+
+    try {
+        const resp = await fetch('/generate-invoice', {
+            method:  'POST',
+            headers: {'Content-Type': 'application/json'},
+            body:    JSON.stringify(payload)
+        });
+        const data = await resp.json();
+
+        if (data.pdf) {
+            const a       = document.createElement('a');
+            a.href        = 'data:application/pdf;base64,' + data.pdf;
+            a.download    = `Healthy_Cafe_Invoice_${data.invoiceNumber || 'UPI'}.pdf`;
+            a.target      = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } else {
+            alert('Invoice generate nahi ho paya. Please try again.');
+        }
+    } catch(e) {
+        alert('Network error. Please try again.');
+    }
+}
+</script>
         </div>
     </section>
 

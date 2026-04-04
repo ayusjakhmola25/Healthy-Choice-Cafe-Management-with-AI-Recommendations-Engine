@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -245,6 +246,50 @@ except Exception as e:
 
 
 limiter = Limiter(get_remote_address, app=app)
+
+# ── OTP store (in-memory) ──────────────────────────────────────
+otp_store = {}   # { mobile: { otp, expires_at } }
+
+FAST2SMS_API_KEY = "lQWdkrVZHnS8pXricdt8o1klJsKh1WRlefjFe2rz9PSxyWhQgZ02klrWnDKL"   # <── sirf yeh badlo
+
+@app.route('/send-otp', methods=['POST'])
+def send_otp():
+    data   = request.get_json()
+    mobile = data.get('mobile', '').strip()
+
+    if not mobile or len(mobile) != 10 or not mobile.isdigit():
+        return jsonify({'success': False, 'message': 'Invalid mobile number'}), 400
+
+    otp = str(random.randint(100000, 999999))
+    otp_store[mobile] = {
+        'otp': otp,
+        'expires_at': datetime.now().timestamp() + 300
+    }
+
+    # OTP screen pe dikhayenge — koi SMS nahi
+    return jsonify({'success': True, 'otp': otp, 'message': 'OTP generated'})
+
+
+@app.route('/verify-otp', methods=['POST'])
+def verify_otp():
+    data   = request.get_json()
+    mobile = data.get('mobile', '').strip()
+    otp    = data.get('otp',    '').strip()
+
+    record = otp_store.get(mobile)
+
+    if not record:
+        return jsonify({'success': False, 'message': 'OTP not sent or expired. Please resend.'}), 400
+
+    if datetime.now().timestamp() > record['expires_at']:
+        otp_store.pop(mobile, None)
+        return jsonify({'success': False, 'message': 'OTP expired. Please resend.'}), 400
+
+    if record['otp'] != otp:
+        return jsonify({'success': False, 'message': 'Wrong OTP. Please try again.'}), 400
+
+    otp_store.pop(mobile, None)   # OTP use ho gaya, delete karo
+    return jsonify({'success': True, 'message': 'OTP verified successfully!'})
 
 @app.route('/register', methods=['POST'])
 def register():
