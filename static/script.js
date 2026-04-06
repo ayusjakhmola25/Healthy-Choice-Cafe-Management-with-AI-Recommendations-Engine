@@ -1,82 +1,82 @@
 
 // Login function for email/password login
 async function loginUser(e) {
-  e.preventDefault();
-  const email = document.getElementById('loginEmail').value;
-  const password = document.getElementById('loginPassword').value;
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
 
-  try {
-    const response = await fetch('http://127.0.0.1:3000/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email, password })
-    });
+    try {
+        const response = await fetch('http://127.0.0.1:3000/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+        });
 
-    const data = await response.json();
+        const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Login failed');
+        if (!response.ok) {
+            throw new Error(data.error || 'Login failed');
+        }
+
+        // Direct Login without OTP
+        localStorage.setItem('user', JSON.stringify(data.user));
+
+        // Redirect to cafeteria — popups will be handled there
+        window.location.href = '/cafeteria';
+    } catch (error) {
+        alert('Error logging in: ' + error.message);
     }
 
-    // Direct Login without OTP
-    localStorage.setItem('user', JSON.stringify(data.user));
-
-    // Redirect to cafeteria — popups will be handled there
-    window.location.href = '/cafeteria';
-  } catch (error) {
-    alert('Error logging in: ' + error.message);
-  }
-
-  return false;
+    return false;
 }
 
 // selectDiet and popup setup removed — popup flow now lives in cafeteria.html
 
 // Existing function: registerUser
 async function registerUser(e) {
-  if (e) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
-  
-  const name = document.getElementById('regName').value;
-  const email = document.getElementById('regEmail').value;
-  const password = document.getElementById('regPassword').value;
-  const mobile = document.getElementById('regMobile').value;
-
-  try {
-    const response = await fetch('http://127.0.0.1:3000/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ name, email, password, mobile })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Registration failed');
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
     }
 
-    alert('Registration successful! Please login.');
+    const name = document.getElementById('regName').value;
+    const email = document.getElementById('regEmail').value;
+    const password = document.getElementById('regPassword').value;
+    const mobile = document.getElementById('regMobile').value;
 
-    // Switch to Login form (slide back)
-    showLoginPanel();
+    try {
+        const response = await fetch('http://127.0.0.1:3000/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name, email, password, mobile })
+        });
 
-    // Optionally clear the register form
-    document.getElementById('regName').value = '';
-    document.getElementById('regMobile').value = '';
-    document.getElementById('regEmail').value = '';
-    document.getElementById('regPassword').value = '';
+        const data = await response.json();
 
-  } catch (error) {
-    alert('Error registering user: ' + error.message);
-  }
+        if (!response.ok) {
+            throw new Error(data.error || 'Registration failed');
+        }
 
-  return false;
+        alert('Registration successful! Please login.');
+
+        // Switch to Login form (slide back)
+        showLoginPanel();
+
+        // Optionally clear the register form
+        document.getElementById('regName').value = '';
+        document.getElementById('regMobile').value = '';
+        document.getElementById('regEmail').value = '';
+        document.getElementById('regPassword').value = '';
+
+    } catch (error) {
+        alert('Error registering user: ' + error.message);
+    }
+
+    return false;
 }
 
 
@@ -84,11 +84,11 @@ async function registerUser(e) {
 
 // Existing function: logout
 function logout() {
-  alert('Logged out successfully!');
-  localStorage.removeItem('dietPreference'); // Reset diet preference so popup shows on next login
-  localStorage.removeItem('user');
-  localStorage.removeItem('cart');
-  window.location.href = '/login'; // Redirect to login page
+    alert('Logged out successfully!');
+    localStorage.removeItem('dietPreference'); // Reset diet preference so popup shows on next login
+    localStorage.removeItem('user');
+    localStorage.removeItem('cart');
+    window.location.href = '/login'; // Redirect to login page
 }
 
 // --- NEW PROFILE FUNCTIONS ---
@@ -212,7 +212,7 @@ async function updateProfile(e) {
     };
 
     try {
-    const response = await fetch('http://127.0.0.1:3000/update-profile', {
+        const response = await fetch('http://127.0.0.1:3000/update-profile', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -253,7 +253,7 @@ function showRegisterPanel(e) {
 // Function to show the Login form (Slides back to the right)
 function showLoginPanel(e) {
     if (e) e.preventDefault();
-    
+
     // Check if we're on login page with animation container, otherwise redirect
     const mainContainer = document.querySelector('.login-main');
     if (!mainContainer || !document.querySelector('.animation-container')) {
@@ -261,7 +261,7 @@ function showLoginPanel(e) {
         window.location.href = '/login';
         return;
     }
-    
+
     mainContainer.classList.remove('register-active');
     document.title = 'Cafe Zone | Login'; // Change page title dynamically
 }
@@ -280,148 +280,148 @@ let otpTimerInterval;
 
 // Function to generate OTP (API call) - SECURE: Calls backend to send OTP
 async function generateOtp() {
-  const email = document.getElementById('loginEmail').value;
+    const email = document.getElementById('loginEmail').value;
 
-  if (!email) {
-    alert('Please enter your email address');
-    return;
-  }
-
-  try {
-    // Call the secure backend endpoint to send OTP
-    const response = await fetch('http://127.0.0.1:3000/send-login-otp', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email: email })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to send OTP');
+    if (!email) {
+        alert('Please enter your email address');
+        return;
     }
 
-    // Store the OTP ID returned by backend (not the OTP itself!)
-    localStorage.setItem('otpId', data.otpId);
-    // Store expiry time (5 minutes from now)
-    localStorage.setItem('otpExpiry', Date.now() + 300000); // 5 minutes in milliseconds
+    try {
+        // Call the secure backend endpoint to send OTP
+        const response = await fetch('http://127.0.0.1:3000/send-login-otp', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email: email })
+        });
 
-    // Show OTP section
-    document.getElementById('otpSection').style.display = 'block';
-    document.getElementById('sendOtpBtn').style.display = 'none';
-    document.getElementById('otpMessage').textContent = 'Sending OTP to your email...';
+        const data = await response.json();
 
-    // Start timer (5 minutes as configured in backend)
-    startTimer();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to send OTP');
+        }
 
-    document.getElementById('otpMessage').textContent = `OTP sent to your email successfully!`;
-  } catch (error) {
-    alert('Error sending login OTP: ' + error.message);
-  }
+        // Store the OTP ID returned by backend (not the OTP itself!)
+        localStorage.setItem('otpId', data.otpId);
+        // Store expiry time (5 minutes from now)
+        localStorage.setItem('otpExpiry', Date.now() + 300000); // 5 minutes in milliseconds
+
+        // Show OTP section
+        document.getElementById('otpSection').style.display = 'block';
+        document.getElementById('sendOtpBtn').style.display = 'none';
+        document.getElementById('otpMessage').textContent = 'Sending OTP to your email...';
+
+        // Start timer (5 minutes as configured in backend)
+        startTimer();
+
+        document.getElementById('otpMessage').textContent = `OTP sent to your email successfully!`;
+    } catch (error) {
+        alert('Error sending login OTP: ' + error.message);
+    }
 }
 
 // Function to start OTP timer
 function startTimer() {
-  // Clear any existing timer
-  if (otpTimerInterval) {
-    clearInterval(otpTimerInterval);
-  }
-
-  let timeLeft = 300; // 5 minutes (matches backend expiry)
-  const timerDisplay = document.getElementById('timerDisplay');
-  const resendBtn = document.getElementById('resendOtpBtn');
-
-  otpTimerInterval = setInterval(() => {
-    const minutes = Math.floor(timeLeft / 60);
-    const seconds = timeLeft % 60;
-    timerDisplay.textContent = `Time remaining: ${minutes}:${seconds.toString().padStart(2, '0')}`;
-    timeLeft--;
-
-    if (timeLeft < 0) {
-      clearInterval(otpTimerInterval);
-      timerDisplay.textContent = 'OTP expired!';
-      resendBtn.style.display = 'block';
+    // Clear any existing timer
+    if (otpTimerInterval) {
+        clearInterval(otpTimerInterval);
     }
-  }, 1000);
+
+    let timeLeft = 300; // 5 minutes (matches backend expiry)
+    const timerDisplay = document.getElementById('timerDisplay');
+    const resendBtn = document.getElementById('resendOtpBtn');
+
+    otpTimerInterval = setInterval(() => {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerDisplay.textContent = `Time remaining: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+        timeLeft--;
+
+        if (timeLeft < 0) {
+            clearInterval(otpTimerInterval);
+            timerDisplay.textContent = 'OTP expired!';
+            resendBtn.style.display = 'block';
+        }
+    }, 1000);
 }
 
 // Function to resend OTP
 function resendOtp() {
-  generateOtp();
-  document.getElementById('resendOtpBtn').style.display = 'none';
+    generateOtp();
+    document.getElementById('resendOtpBtn').style.display = 'none';
 }
 
 // Function to show intermediate popup
 function showIntermediatePopup() {
-  const intermediatePopup = document.getElementById('intermediatePopup');
-  const intermediateOkBtn = document.getElementById('intermediateOkBtn');
-  const intermediateCancelBtn = document.getElementById('intermediateCancelBtn');
+    const intermediatePopup = document.getElementById('intermediatePopup');
+    const intermediateOkBtn = document.getElementById('intermediateOkBtn');
+    const intermediateCancelBtn = document.getElementById('intermediateCancelBtn');
 
-  if (intermediatePopup && intermediateOkBtn && intermediateCancelBtn) {
-    intermediatePopup.style.display = 'flex';
+    if (intermediatePopup && intermediateOkBtn && intermediateCancelBtn) {
+        intermediatePopup.style.display = 'flex';
 
-    // Add event listeners
-    intermediateOkBtn.addEventListener('click', () => {
-      intermediatePopup.style.display = 'none';
-      showDietPopup();
-    });
-    intermediateCancelBtn.addEventListener('click', () => {
-      intermediatePopup.style.display = 'none';
-      localStorage.removeItem('dietPreference');
-      loadFoodItems();
-    });
-  }
+        // Add event listeners
+        intermediateOkBtn.addEventListener('click', () => {
+            intermediatePopup.style.display = 'none';
+            showDietPopup();
+        });
+        intermediateCancelBtn.addEventListener('click', () => {
+            intermediatePopup.style.display = 'none';
+            localStorage.removeItem('dietPreference');
+            loadFoodItems();
+        });
+    }
 }
 
 // Function to show diet popup with smooth animation
 function showDietPopup() {
-  const dietPopup = document.getElementById('dietPopup');
-  const dietBtn = document.getElementById('dietBtn');
-  const nonDietBtn = document.getElementById('nonDietBtn');
-  const cancelBtn = document.getElementById('cancelBtn');
+    const dietPopup = document.getElementById('dietPopup');
+    const dietBtn = document.getElementById('dietBtn');
+    const nonDietBtn = document.getElementById('nonDietBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
 
-  if (dietPopup && dietBtn && nonDietBtn && cancelBtn) {
-    // Reset animation by removing and re-adding the class
-    dietPopup.style.display = 'flex';
-    dietPopup.classList.remove('popup-overlay');
-    void dietPopup.offsetWidth; // Trigger reflow
-    dietPopup.classList.add('popup-overlay');
+    if (dietPopup && dietBtn && nonDietBtn && cancelBtn) {
+        // Reset animation by removing and re-adding the class
+        dietPopup.style.display = 'flex';
+        dietPopup.classList.remove('popup-overlay');
+        void dietPopup.offsetWidth; // Trigger reflow
+        dietPopup.classList.add('popup-overlay');
 
-    // Add event listeners for diet buttons with animation
-    dietBtn.addEventListener('click', () => handleDietSelection('diet'));
-    nonDietBtn.addEventListener('click', () => handleDietSelection('non-diet'));
-    cancelBtn.addEventListener('click', () => handleDietSelection('cancel'));
-  }
+        // Add event listeners for diet buttons with animation
+        dietBtn.addEventListener('click', () => handleDietSelection('diet'));
+        nonDietBtn.addEventListener('click', () => handleDietSelection('non-diet'));
+        cancelBtn.addEventListener('click', () => handleDietSelection('cancel'));
+    }
 }
 
 // Function to hide popup with fade out animation
 function hidePopup(popupId) {
-  const popup = document.getElementById(popupId);
-  if (popup) {
-    popup.style.animation = 'fadeOut 0.3s ease forwards';
-    setTimeout(() => {
-      popup.style.display = 'none';
-      popup.style.animation = '';
-    }, 300);
-  }
+    const popup = document.getElementById(popupId);
+    if (popup) {
+        popup.style.animation = 'fadeOut 0.3s ease forwards';
+        setTimeout(() => {
+            popup.style.display = 'none';
+            popup.style.animation = '';
+        }, 300);
+    }
 }
 
 // Function to handle diet selection
 function handleDietSelection(dietPreference) {
-  localStorage.setItem('dietPreference', dietPreference);
-  document.getElementById('dietPopup').style.display = 'none';
-  loadFoodItems();
+    localStorage.setItem('dietPreference', dietPreference);
+    document.getElementById('dietPopup').style.display = 'none';
+    loadFoodItems();
 }
 
 // Function to save logged-in user's basic info in localStorage 
-function saveUserToLocal(userInfo) { 
-	localStorage.setItem("user", JSON.stringify({ 
-		id: userInfo.id,
-		name: userInfo.name,
-		email:	userInfo.email 
-	}));
+function saveUserToLocal(userInfo) {
+    localStorage.setItem("user", JSON.stringify({
+        id: userInfo.id,
+        name: userInfo.name,
+        email: userInfo.email
+    }));
 }
 
 
@@ -578,7 +578,7 @@ function createNutritionChart(canvasId, protein, carbs, fats, calories) {
                 },
                 tooltip: {
                     callbacks: {
-                        label: function(context) {
+                        label: function (context) {
                             const label = context.label || '';
                             const value = context.parsed || 0;
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
@@ -742,18 +742,18 @@ async function loadCartPage() {
 
     // Coins check
     const userRaw = localStorage.getItem('user');
-    const user    = userRaw ? JSON.parse(userRaw) : null;
+    const user = userRaw ? JSON.parse(userRaw) : null;
     let userCoins = 0;
     if (user && user.mobile) {
         try {
             const cr = await fetch(`/api/user/profile?mobile=${user.mobile}`);
             const cd = await cr.json();
             userCoins = cd.user?.health_coins || 0;
-        } catch(e) {}
+        } catch (e) { }
     }
 
     const maxUsableCoins = Math.min(userCoins, 200);
-    const maxDiscount    = Math.floor(maxUsableCoins / 100) * 10;
+    const maxDiscount = Math.floor(maxUsableCoins / 100) * 10;
 
     cartSummary.innerHTML = `
         <h3>Order Summary</h3>
@@ -869,7 +869,7 @@ function showProcessingOverlay() {
     // Animate bar
     let pct = 10;
     const timer = setInterval(() => {
-        pct = Math.min(95, pct + Math.floor(Math.random()*15)+5);
+        pct = Math.min(95, pct + Math.floor(Math.random() * 15) + 5);
         const bar = document.getElementById('processingBar');
         if (bar) bar.style.width = pct + '%';
     }, 250);
@@ -880,7 +880,7 @@ function showProcessingOverlay() {
 async function proceedToPayment() {
     const user = JSON.parse(localStorage.getItem('user')) || {};
     cart = JSON.parse(localStorage.getItem('cart')) || [];
-    
+
     if (cart.length === 0) {
         alert("Your cart is empty!");
         return;
@@ -907,7 +907,7 @@ async function proceedToPayment() {
         }
 
         const data = await response.json();
-        
+
         // Save the pending order ID to complete it later on payment
         localStorage.setItem('currentOrderId', data.order_id);
 
@@ -1131,17 +1131,17 @@ async function processCodPayment() {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-            body: JSON.stringify({
-                order_id: orderId,
-                user_id: user.id || null,
-                name: customerName,
-                mobile: customerMobile,
-                email: customerEmail,
-                order_data: JSON.stringify(cart),
-                total_amount: totalAmount,
-                payment_method: 'Cash on Delivery',
-                diet_preference: dietPreference
-            })
+                body: JSON.stringify({
+                    order_id: orderId,
+                    user_id: user.id || null,
+                    name: customerName,
+                    mobile: customerMobile,
+                    email: customerEmail,
+                    order_data: JSON.stringify(cart),
+                    total_amount: totalAmount,
+                    payment_method: 'Cash on Delivery',
+                    diet_preference: dietPreference
+                })
             });
 
             if (!saveResponse.ok) {
@@ -1303,15 +1303,15 @@ async function saveOrder(status, paymentMethod) {
     const user = JSON.parse(localStorage.getItem('user')) || {};
     const existing = JSON.parse(localStorage.getItem('orders') || '[]');
 
-    const orderNumber = '#'+Math.floor(Math.random()*1e10).toString(16);
+    const orderNumber = '#' + Math.floor(Math.random() * 1e10).toString(16);
     const totals = cart.reduce((acc, it) => {
         acc.itemsTotal += it.price * it.quantity;
-        acc.protein += (it.protein||0) * it.quantity;
-        acc.carbs += (it.carbs||0) * it.quantity;
-        acc.fats += (it.fats||0) * it.quantity;
-        acc.calories += (it.calories||0) * it.quantity;
+        acc.protein += (it.protein || 0) * it.quantity;
+        acc.carbs += (it.carbs || 0) * it.quantity;
+        acc.fats += (it.fats || 0) * it.quantity;
+        acc.calories += (it.calories || 0) * it.quantity;
         return acc;
-    }, { itemsTotal:0, protein:0, carbs:0, fats:0, calories:0 });
+    }, { itemsTotal: 0, protein: 0, carbs: 0, fats: 0, calories: 0 });
 
     const order = {
         id: orderNumber,
@@ -1485,7 +1485,7 @@ function csvSafeSplit(line) {
     for (let i = 0; i < line.length; i++) {
         const ch = line[i];
         if (ch === '"') {
-            if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+            if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
             else { inQ = !inQ; }
         } else if (ch === ',' && !inQ) {
             parts.push(cur.trim()); cur = '';
@@ -1566,11 +1566,11 @@ async function loadAIRecommendations() {
 
         // Simple heuristic: Diet -> high protein, Non-diet -> high calories, else top rating proxy by carbs
         if (pref === 'diet') {
-            items.sort((a,b) => (parseFloat(b.protein||0)) - (parseFloat(a.protein||0)));
+            items.sort((a, b) => (parseFloat(b.protein || 0)) - (parseFloat(a.protein || 0)));
         } else if (pref === 'non-diet') {
-            items.sort((a,b) => (parseFloat(b.calories||0)) - (parseFloat(a.calories||0)));
+            items.sort((a, b) => (parseFloat(b.calories || 0)) - (parseFloat(a.calories || 0)));
         } else {
-            items.sort((a,b) => (parseFloat(b.carbs||0)) - (parseFloat(a.carbs||0)));
+            items.sort((a, b) => (parseFloat(b.carbs || 0)) - (parseFloat(a.carbs || 0)));
         }
 
         const top = items.slice(0, 5);
@@ -1598,7 +1598,7 @@ async function loadAIRecommendations() {
             loading.style.display = 'none';
             cardsContainer.style.display = 'grid';
         }, 700);
-    } catch(e) {
+    } catch (e) {
         loading.textContent = 'Unable to load recommendations.';
     }
 }
@@ -1620,19 +1620,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load food items on cafeteria page
     if (window.location.pathname.includes('cafeteria')) {
-    // Show welcome popup
-    const welcomePopup = document.getElementById('welcomePopup');
-    const continueBtn = document.getElementById('continueBtn');
+        // Show welcome popup
+        const welcomePopup = document.getElementById('welcomePopup');
+        const continueBtn = document.getElementById('continueBtn');
 
-    if (welcomePopup && continueBtn) {
-        welcomePopup.style.display = 'flex';
+        if (welcomePopup && continueBtn) {
+            welcomePopup.style.display = 'flex';
 
-        // Handle continue button to show intermediate popup
-        continueBtn.addEventListener('click', () => {
-            welcomePopup.style.display = 'none';
-            showIntermediatePopup();
-        });
-    }
+            // Handle continue button to show intermediate popup
+            continueBtn.addEventListener('click', () => {
+                welcomePopup.style.display = 'none';
+                showIntermediatePopup();
+            });
+        }
 
         // Render AI recommendations banner
         loadAIRecommendations();
@@ -1646,8 +1646,8 @@ document.addEventListener('DOMContentLoaded', () => {
             el && el.classList.add('active');
         };
         filterAll && filterAll.addEventListener('click', () => { localStorage.removeItem('dietPreference'); setActive(filterAll); loadFoodItems(); loadAIRecommendations(); });
-        filterDiet && filterDiet.addEventListener('click', () => { localStorage.setItem('dietPreference','diet'); setActive(filterDiet); loadFoodItems(); loadAIRecommendations(); });
-        filterNon && filterNon.addEventListener('click', () => { localStorage.setItem('dietPreference','non-diet'); setActive(filterNon); loadFoodItems(); loadAIRecommendations(); });
+        filterDiet && filterDiet.addEventListener('click', () => { localStorage.setItem('dietPreference', 'diet'); setActive(filterDiet); loadFoodItems(); loadAIRecommendations(); });
+        filterNon && filterNon.addEventListener('click', () => { localStorage.setItem('dietPreference', 'non-diet'); setActive(filterNon); loadFoodItems(); loadAIRecommendations(); });
     }
 
     // Load cart page
@@ -1838,7 +1838,7 @@ function toggleEditMode() {
 
     // Check current display state
     const isFormVisible = form.style.display === 'block';
-    
+
     if (isFormVisible) {
         // Switch to view mode (hide form, show table and button)
         table.style.display = 'table';
@@ -1896,7 +1896,7 @@ async function placeOrder() {
 // Function to load user orders from database
 async function loadUserOrders() {
     const user = JSON.parse(localStorage.getItem("user"));
-    
+
     if (!user || !user.id) {
         console.log("User not logged in, skipping database orders fetch");
         return;
@@ -1945,9 +1945,9 @@ async function loadOrders() {
         const guestResponse = await fetch('http://127.0.0.1:3000/get-guest-orders', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                mobile: user.mobile || '', 
-                email: user.email || '' 
+            body: JSON.stringify({
+                mobile: user.mobile || '',
+                email: user.email || ''
             })
         });
         const guestData = guestResponse.ok ? await guestResponse.json() : { orders: [] };
@@ -1958,7 +1958,7 @@ async function loadOrders() {
             ...dbOrders.map(o => ({
                 id: `#DB${o.id}`,
                 date: o.created_at,
-                status: o.order_status || 'completed', 
+                status: o.order_status || 'completed',
                 paymentMethod: 'Online',
                 items: [], // Would need separate API call
                 metrics: { protein: 0, carbs: 0, fats: 0, calories: 0 },
@@ -1975,8 +1975,8 @@ async function loadOrders() {
                         parsedMetrics.fats += (item.fats || 0) * item.quantity;
                         parsedMetrics.calories += (item.calories || 0) * item.quantity;
                     });
-                } catch(e) {}
-                
+                } catch (e) { }
+
                 return {
                     id: `#G${o.id}`,
                     date: o.order_date,
@@ -1994,7 +1994,7 @@ async function loadOrders() {
         allOrders.push(...localOrders);
 
         // Sort by date desc
-        allOrders.sort((a,b) => new Date(b.date) - new Date(a.date));
+        allOrders.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         // Update localStorage
         localStorage.setItem('orders', JSON.stringify(allOrders));
