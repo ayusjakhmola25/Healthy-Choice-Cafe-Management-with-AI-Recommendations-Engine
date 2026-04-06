@@ -22,7 +22,8 @@
             </div>
             <nav class="side-links">
                 <a href="/cafeteria" class="side-link"><span>🍽️</span><span>Menu</span></a>
-                <a href="/cart" class="side-link"><span>🛒</span><span>My Cart</span><span class="badge" id="cart-count">0</span></a>
+                <a href="/cart" class="side-link"><span>🛒</span><span>My Cart</span><span class="badge"
+                        id="cart-count">0</span></a>
                 <a href="/orders" class="side-link"><span>📦</span><span>My Orders</span></a>
                 <a href="/profile" class="side-link active"><span>👤</span><span>Profile</span></a>
                 <a href="/best-selling" class="side-link"><span>🔥</span><span>Best Selling</span></a>
@@ -207,7 +208,7 @@
                 document.getElementById("profileNameDisplay").textContent = data.name || "-";
                 document.getElementById("profileEmailDisplay").textContent = data.email || "-";
                 document.getElementById("profileMobileDisplay").textContent = data.mobile || "-";
-                
+
                 let dobText = "-";
                 if (data.dob) {
                     const d = new Date(data.dob);
@@ -218,7 +219,7 @@
                     }
                 }
                 document.getElementById("profileDOBDisplay").textContent = dobText;
-                
+
                 document.getElementById("profileGenderDisplay").textContent = data.gender || "-";
 
                 // Show health coins
