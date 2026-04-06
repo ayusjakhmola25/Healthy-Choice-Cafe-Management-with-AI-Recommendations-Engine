@@ -475,17 +475,58 @@ async function downloadInvoice() {
     const cart  = JSON.parse(localStorage.getItem('cart') || '[]');
     const user  = JSON.parse(localStorage.getItem('user') || '{}');
     const total = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+    const gst   = total * 0.18;
+    const deliveryFee = 50;
+    const finalTotal  = total + gst + deliveryFee;
+
+    // Get guest details if not logged in
+    let customerName   = user.name   || '';
+    let customerMobile = user.mobile || verifiedMobile;
+    let customerEmail  = user.email  || '';
+    let dietPreference = null;
+
+    if (!customerName || !customerMobile || !customerEmail) {
+        const gn = document.getElementById('guestName');
+        const gm = document.getElementById('guestMobile');
+        const ge = document.getElementById('guestEmail');
+        const dp = document.getElementById('dietPreference');
+        if (gn) customerName   = gn.value || customerName;
+        if (gm) customerMobile = gm.value || customerMobile;
+        if (ge) customerEmail  = ge.value || customerEmail;
+        if (dp) dietPreference = dp.value || null;
+    }
 
     const payload = {
         orderItems:     cart,
         totalAmount:    total,
         paymentMethod:  'UPI / Google Pay',
-        customerName:   user.name  || 'Customer',
-        customerMobile: verifiedMobile,
-        customerEmail:  user.email || '',
+        customerName:   customerName || 'Customer',
+        customerMobile: verifiedMobile || customerMobile,
+        customerEmail:  customerEmail,
     };
 
     try {
+        // 1) Save the order to database
+        const orderId = localStorage.getItem('currentOrderId');
+        if (orderId) {
+            await fetch('/save-order', {
+                method:  'POST',
+                headers: {'Content-Type': 'application/json'},
+                body:    JSON.stringify({
+                    order_id:        orderId,
+                    user_id:         user.id || null,
+                    name:            customerName || 'Customer',
+                    mobile:          verifiedMobile || customerMobile,
+                    email:           customerEmail,
+                    order_data:      JSON.stringify(cart),
+                    total_amount:    finalTotal,
+                    payment_method:  'UPI / Google Pay',
+                    diet_preference: dietPreference
+                })
+            });
+        }
+
+        // 2) Generate and download the invoice PDF
         const resp = await fetch('/generate-invoice', {
             method:  'POST',
             headers: {'Content-Type': 'application/json'},
@@ -503,7 +544,17 @@ async function downloadInvoice() {
             document.body.removeChild(a);
         } else {
             alert('Invoice generate nahi ho paya. Please try again.');
+            return; // Don't redirect if invoice failed
         }
+
+        // 3) Clear cart completely
+        localStorage.removeItem('cart');
+        localStorage.removeItem('currentOrderId');
+
+        // 4) Show success message and redirect to dashboard (cafeteria)
+        alert('✅ Payment successful! Your order has been placed.');
+        window.location.href = '/cafeteria';
+
     } catch(e) {
         alert('Network error. Please try again.');
     }
