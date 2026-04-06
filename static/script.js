@@ -684,7 +684,7 @@ async function loadFoodItems() {
 
 
 // Function to load cart page
-function loadCartPage() {
+async function loadCartPage() {
     const cartItems = document.getElementById('cart-items');
     const cartSummary = document.getElementById('cart-summary');
     const emptyCart = document.getElementById('empty-cart');
@@ -740,12 +740,55 @@ function loadCartPage() {
     const deliveryFee = 50;
     const finalTotal = subTotal + gst + deliveryFee;
 
+    // Coins check
+    const userRaw = localStorage.getItem('user');
+    const user    = userRaw ? JSON.parse(userRaw) : null;
+    let userCoins = 0;
+    if (user && user.mobile) {
+        try {
+            const cr = await fetch(`/api/user/profile?mobile=${user.mobile}`);
+            const cd = await cr.json();
+            userCoins = cd.user?.health_coins || 0;
+        } catch(e) {}
+    }
+
+    const maxUsableCoins = Math.min(userCoins, 200);
+    const maxDiscount    = Math.floor(maxUsableCoins / 100) * 10;
+
     cartSummary.innerHTML = `
         <h3>Order Summary</h3>
         <div class="summary-row"><span>Subtotal</span><span>₹${subTotal.toFixed(2)}</span></div>
         <div class="summary-row"><span>GST (18%)</span><span>₹${gst.toFixed(2)}</span></div>
         <div class="summary-row"><span>Delivery Fee</span><span>₹${deliveryFee.toFixed(2)}</span></div>
-        <div class="summary-row total"><span>Final Amount</span><span>₹${finalTotal.toFixed(2)}</span></div>
+
+        ${userCoins >= 100 ? `
+        <div class="coins-box" id="coinsBox">
+          <div class="coins-header">
+            <span>🪙 Health Coins: <b>${userCoins}</b></span>
+            <span class="coins-badge">${getBadge(userCoins).icon} ${getBadge(userCoins).name}</span>
+          </div>
+          <div class="coins-row">
+            <input type="range" id="coinsSlider" min="0" max="${maxUsableCoins}"
+                   step="100" value="0" oninput="updateCoinDiscount(this.value, ${finalTotal})">
+            <span id="coinsUsedLabel">0 coins = ₹0 off</span>
+          </div>
+          <div class="coins-hint">Use 100 coins = ₹10 discount (max ₹${maxDiscount} off)</div>
+        </div>
+        ` : userCoins > 0 ? `
+        <div class="coins-box-low">
+            🪙 You have <b>${userCoins}</b> coins — earn ${100 - userCoins} more for ₹10 discount!
+        </div>
+        ` : ''}
+
+        <div class="summary-row total" id="finalRow">
+            <span>Final Amount</span>
+            <span id="finalAmountDisplay">₹${finalTotal.toFixed(2)}</span>
+        </div>
+        <div id="discountRow" class="summary-row discount-row" style="display:none;">
+            <span>🪙 Coins Discount</span>
+            <span id="discountDisplay" style="color:#2e7d32;font-weight:700;">-₹0</span>
+        </div>
+
         <div class="nutrition-summary">
             <h4>Nutritional Summary</h4>
             <div class="nutrition-row"><span>Protein</span><span>${nutritionTotals.protein.toFixed(1)}g</span></div>
@@ -754,7 +797,7 @@ function loadCartPage() {
             <div class="nutrition-row"><span>Calories</span><span>${Math.round(nutritionTotals.calories)}</span></div>
         </div>
         <button class="checkout-btn" onclick="proceedToPayment()">Proceed to Payment</button>
-        <div style="font-size:12px;color:#777;margin-top:6px;">Payment will be processed automatically • Secure checkout</div>
+        <div style="font-size:12px;color:#777;margin-top:6px;">Secure checkout</div>
     `;
 
     updateCartCount();

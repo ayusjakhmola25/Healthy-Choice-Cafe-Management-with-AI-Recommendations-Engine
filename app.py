@@ -11,8 +11,6 @@ import bcrypt
 from flask import Flask, request, jsonify, render_template, session
 from flask_cors import CORS
 from flask_mail import Mail, Message
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 import random
 import time
 from reportlab.lib.pagesizes import letter
@@ -22,6 +20,9 @@ from reportlab.lib import colors
 import random
 import time
 from datetime import datetime, timedelta
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.preprocessing import StandardScaler
 if sys.platform == 'win32':
     import codecs
     sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
@@ -245,7 +246,9 @@ except Exception as e:
 
 
 
-limiter = Limiter(get_remote_address, app=app)
+# ── Account Lockout Store ──────────────────────────────
+failed_attempts = {}  
+# { email: { count: 0, locked_until: None } }
 
 # ── OTP store (in-memory) ──────────────────────────────────────
 otp_store = {}   # { mobile: { otp, expires_at } }
@@ -375,47 +378,110 @@ def update_profile():
 
 @app.route('/login', methods=['POST'])
 def login():
+    data     = request.get_json()
+    email    = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+    ip       = request.remote_addr
 
-    data = request.get_json()
+    if not email or not password:
+        return jsonify({'error': 'Email and password required'}), 400
 
-    email = data.get('email')
-    password = data.get('password')
+    # ── Rate Limit: max 10 login requests per minute per IP ──
+    # (simple in-memory check)
+    now = datetime.now()
 
-    cursor.execute(
-        "SELECT * FROM users WHERE email=%s",
-        (email,)
-    )
+    # ── Account Lockout Check ──────────────────────────────
+    record = failed_attempts.get(email, {'count': 0, 'locked_until': None})
 
+    if record['locked_until'] and now < record['locked_until']:
+        remaining = int((record['locked_until'] - now).total_seconds() / 60) + 1
+        # Log failed attempt — locked
+        try:
+            cursor.execute("""
+                INSERT INTO login_history (user_id, login_time, ip_address)
+                VALUES (%s, %s, %s)
+            """, (0, now, f"{ip} [LOCKED - {email}]"))
+            db.commit()
+        except: pass
+        return jsonify({
+            'error': f'Account locked. Try again in {remaining} minute(s).'
+        }), 429
+
+    # ── DB lookup ──────────────────────────────────────────
+    cursor.execute("SELECT * FROM users WHERE email=%s", (email,))
     user = cursor.fetchone()
 
     if not user:
-        return jsonify({"error":"User not found"}),404
+        # ── Log failed — user not found ──
+        try:
+            cursor.execute("""
+                INSERT INTO login_history (user_id, login_time, ip_address)
+                VALUES (%s, %s, %s)
+            """, (0, now, f"{ip} [FAILED - no user: {email}]"))
+            db.commit()
+        except: pass
+        return jsonify({'error': 'User not found'}), 404
 
-    if not bcrypt.checkpw(password.encode('utf-8'), user["password_hash"].encode('utf-8')):
-        return jsonify({"error":"Invalid password"}),401
+    # ── Password check ─────────────────────────────────────
+    if not bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
 
-    session["user_id"] = user["id"]
-    session["user_name"] = user["name"]
+        # Increment failed attempts
+        record['count'] = record.get('count', 0) + 1
+        record['locked_until'] = None
 
-    
-    ip_address = request.remote_addr
+        if record['count'] >= 5:
+            record['locked_until'] = now + timedelta(minutes=10)
+            failed_attempts[email]  = record
+            # Log — account locked
+            try:
+                cursor.execute("""
+                    INSERT INTO login_history (user_id, login_time, ip_address)
+                    VALUES (%s, %s, %s)
+                """, (user['id'], now, f"{ip} [ACCOUNT LOCKED after 5 attempts]"))
+                db.commit()
+            except: pass
+            return jsonify({
+                'error': 'Too many failed attempts. Account locked for 10 minutes.'
+            }), 429
 
+        failed_attempts[email] = record
+        remaining_attempts = 5 - record['count']
+
+        # Log — wrong password
+        try:
+            cursor.execute("""
+                INSERT INTO login_history (user_id, login_time, ip_address)
+                VALUES (%s, %s, %s)
+            """, (user['id'], now, f"{ip} [FAILED attempt {record['count']}/5]"))
+            db.commit()
+        except: pass
+
+        return jsonify({
+            'error': f'Invalid password. {remaining_attempts} attempt(s) remaining.'
+        }), 401
+
+    # ── Success — reset failed attempts ───────────────────
+    failed_attempts.pop(email, None)
+
+    session['user_id']   = user['id']
+    session['user_name'] = user['name']
+
+    # Log — successful login
     cursor.execute("""
-    INSERT INTO login_history (user_id, login_time, ip_address)
-    VALUES (%s,%s,%s)
-    """,(user["id"], datetime.now(), ip_address))
-
+        INSERT INTO login_history (user_id, login_time, ip_address)
+        VALUES (%s, %s, %s)
+    """, (user['id'], now, f"{ip} [SUCCESS]"))
     db.commit()
 
     return jsonify({
-        "success":True,
-        "message":"Login successful",
-        "userId":user["id"],
-        "user": {
-            "id": user["id"],
-            "name": user["name"],
-            "email": user["email"],
-            "mobile": user["mobile"]
+        'success': True,
+        'message': 'Login successful',
+        'userId':  user['id'],
+        'user': {
+            'id':     user['id'],
+            'name':   user['name'],
+            'email':  user['email'],
+            'mobile': user['mobile']
         }
     })
 
@@ -1230,22 +1296,143 @@ def get_user_stats_api():
 @app.route('/api/user/recommendations', methods=['GET'])
 def get_user_recommendations_api():
     mobile = request.args.get('mobile')
-    
-    # Just return some active healthy items for now as AI reco
-    cursor.execute("""
-        SELECT id, name, price, image_url 
-        FROM menu_items 
-        WHERE is_active = 1 AND category = 'healthy'
-        LIMIT 3
-    """)
-    items = cursor.fetchall()
-    
-    # Format image paths if needed
-    for item in items:
-        if item['image_url'] and '/static/images/' not in item['image_url']:
-            item['image_url'] = '/static/images/' + item['image_url'].split('/')[-1]
-            
-    return jsonify({"recommendations": items})
+
+    try:
+        # ── Step 1: User ki past ordered items IDs nikalo ──
+        ordered_ids = []
+        if mobile:
+            cursor.execute("SELECT id FROM users WHERE mobile=%s", (mobile,))
+            user = cursor.fetchone()
+            if user:
+                cursor.execute("""
+                    SELECT DISTINCT oi.menu_item_id
+                    FROM order_items oi
+                    JOIN orders o ON oi.order_id = o.id
+                    WHERE o.user_id = %s
+                """, (user['id'],))
+                ordered_ids = [r['menu_item_id'] for r in cursor.fetchall()]
+
+        # ── Step 2: Saare active menu items + nutrition data fetch karo ──
+        cursor.execute("""
+            SELECT id, name, price, image_url,
+                   COALESCE(calories, 0) as calories,
+                   COALESCE(protein,  0) as protein,
+                   COALESCE(carbs,    0) as carbs,
+                   COALESCE(fats,     0) as fats,
+                   diet_type, category
+            FROM menu_items
+            WHERE is_active = 1
+        """)
+        all_items = cursor.fetchall()
+
+        if not all_items:
+            return jsonify({"recommendations": []})
+
+        # ── Step 3: Pandas DataFrame banao ──
+        df = pd.DataFrame(all_items)
+
+        # diet_type ko numeric banao
+        diet_map = {'veg': 1, 'diet': 2, 'non-veg': 3, 'nondiet': 4}
+        df['diet_num'] = df['diet_type'].map(diet_map).fillna(0)
+
+        # Features jo similarity ke liye use honge
+        features = df[['calories', 'protein', 'carbs', 'fats', 'diet_num']].fillna(0)
+
+        # ── Step 4: StandardScaler se normalize karo ──
+        scaler  = StandardScaler()
+        scaled  = scaler.fit_transform(features)
+
+        # ── Step 5: Cosine Similarity matrix banao ──
+        sim_matrix = cosine_similarity(scaled)
+
+        # ── Step 6: Recommendations decide karo ──
+        if ordered_ids:
+            # User ne kuch order kiya hai — similar items dhundho
+            ordered_indices = df[df['id'].isin(ordered_ids)].index.tolist()
+
+            # Already ordered items ko exclude karo
+            scores = {}
+            for idx in ordered_indices:
+                for j, score in enumerate(sim_matrix[idx]):
+                    item_id = df.iloc[j]['id']
+                    if item_id not in ordered_ids:
+                        scores[j] = scores.get(j, 0) + score
+
+            if scores:
+                top_indices = sorted(scores, key=scores.get, reverse=True)[:6]
+                recommended = df.iloc[top_indices].to_dict('records')
+            else:
+                # Fallback — top rated by nutrition
+                recommended = df[~df['id'].isin(ordered_ids)].head(6).to_dict('records')
+        else:
+            # Naya user — popular/balanced items show karo
+            # protein aur low calories ke hisaab se sort karo
+            df['score'] = df['protein'] - (df['calories'] * 0.01)
+            recommended = df.sort_values('score', ascending=False).head(6).to_dict('records')
+
+        # ── Step 7: Image path fix karo ──
+        for item in recommended:
+            if item.get('image_url') and '/static/images/' not in str(item['image_url']):
+                item['image_url'] = '/static/images/' + str(item['image_url']).split('/')[-1]
+
+        return jsonify({"recommendations": recommended})
+
+    except Exception as e:
+        print(f"Recommendation error: {e}")
+        # Fallback — random active items
+        cursor.execute("SELECT id, name, price, image_url FROM menu_items WHERE is_active=1 ORDER BY RAND() LIMIT 6")
+        items = cursor.fetchall()
+        return jsonify({"recommendations": items})
+
+# ── Health Coins: Apply Discount ────────────────────────
+@app.route('/api/apply-coins', methods=['POST'])
+def apply_coins():
+    data   = request.get_json()
+    mobile = data.get('mobile')
+    coins_to_use = int(data.get('coins_to_use', 0))
+
+    if not mobile or coins_to_use <= 0:
+        return jsonify({'success': False, 'message': 'Invalid request'}), 400
+
+    cursor.execute("SELECT id, health_coins FROM users WHERE mobile=%s", (mobile,))
+    user = cursor.fetchone()
+
+    if not user:
+        return jsonify({'success': False, 'message': 'User not found'}), 404
+
+    available_coins = user['health_coins']
+
+    # Max 200 coins per order use ho sakte hain
+    coins_to_use = min(coins_to_use, available_coins, 200)
+
+    if coins_to_use < 100:
+        return jsonify({'success': False, 'message': 'Minimum 100 coins required for discount'}), 400
+
+    discount = (coins_to_use // 100) * 10  # 100 coins = ₹10
+
+    return jsonify({
+        'success':     True,
+        'coins_used':  coins_to_use,
+        'discount':    discount,
+        'remaining_coins': available_coins - coins_to_use
+    })
+
+
+@app.route('/api/deduct-coins', methods=['POST'])
+def deduct_coins():
+    data   = request.get_json()
+    mobile = data.get('mobile')
+    coins  = int(data.get('coins', 0))
+
+    if not mobile or coins <= 0:
+        return jsonify({'success': False}), 400
+
+    cursor.execute(
+        "UPDATE users SET health_coins = GREATEST(health_coins - %s, 0) WHERE mobile=%s",
+        (coins, mobile)
+    )
+    db.commit()
+    return jsonify({'success': True})
 
 @app.route('/welcome', methods=['GET'])
 def welcome():
@@ -1751,17 +1938,24 @@ def admin_order_action(order_id):
             # Health Coins Logic
             user_id = order_info['user_id']
             if user_id:
+                # 10 coins per unique healthy item TYPE (not per quantity)
+                # Healthy = category='healthy' OR diet_type IN ('veg','diet')
                 cursor.execute("""
-                    SELECT SUM(oi.quantity) as healthy_items
+                    SELECT COUNT(DISTINCT oi.menu_item_id) as healthy_types
                     FROM order_items oi
                     JOIN menu_items mi ON oi.menu_item_id = mi.id
-                    WHERE oi.order_id = %s AND mi.category = 'healthy'
+                    WHERE oi.order_id = %s
+                    AND (mi.category = 'healthy' OR mi.diet_type IN ('veg', 'diet'))
                 """, (order_id,))
                 res = cursor.fetchone()
-                if res and res['healthy_items']:
-                    coins_to_add = int(res['healthy_items']) * 10
+                if res and res['healthy_types']:
+                    coins_to_add = int(res['healthy_types']) * 10
                     if coins_to_add > 0:
-                        cursor.execute("UPDATE users SET health_coins = health_coins + %s WHERE id = %s", (coins_to_add, user_id))
+                        cursor.execute(
+                            "UPDATE users SET health_coins = health_coins + %s WHERE id = %s",
+                            (coins_to_add, user_id)
+                        )
+                        db.commit()
             
             cursor.execute("INSERT INTO security_logs (admin_id, action) VALUES (%s, %s)",
                            (admin_id, f"Updated order {order_id} status to {new_status} via form"))
@@ -1797,17 +1991,24 @@ def update_order_status():
             # Health Coins Logic
             user_id = order_info['user_id']
             if user_id:
+                # 10 coins per unique healthy item TYPE (not per quantity)
+                # Healthy = category='healthy' OR diet_type IN ('veg','diet')
                 cursor.execute("""
-                    SELECT SUM(oi.quantity) as healthy_items
+                    SELECT COUNT(DISTINCT oi.menu_item_id) as healthy_types
                     FROM order_items oi
                     JOIN menu_items mi ON oi.menu_item_id = mi.id
-                    WHERE oi.order_id = %s AND mi.category = 'healthy'
+                    WHERE oi.order_id = %s
+                    AND (mi.category = 'healthy' OR mi.diet_type IN ('veg', 'diet'))
                 """, (order_id,))
                 res = cursor.fetchone()
-                if res and res['healthy_items']:
-                    coins_to_add = int(res['healthy_items']) * 10
+                if res and res['healthy_types']:
+                    coins_to_add = int(res['healthy_types']) * 10
                     if coins_to_add > 0:
-                        cursor.execute("UPDATE users SET health_coins = health_coins + %s WHERE id = %s", (coins_to_add, user_id))
+                        cursor.execute(
+                            "UPDATE users SET health_coins = health_coins + %s WHERE id = %s",
+                            (coins_to_add, user_id)
+                        )
+                        db.commit()
             
             cursor.execute("INSERT INTO security_logs (admin_id, action) VALUES (%s, %s)",
                            (admin_id, f"Updated order {order_id} status to DELIVERED"))

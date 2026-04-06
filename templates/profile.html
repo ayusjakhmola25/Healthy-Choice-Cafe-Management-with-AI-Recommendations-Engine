@@ -287,18 +287,14 @@
                     if (recoData.recommendations && recoData.recommendations.length > 0) {
                         recoLoading.style.display = 'none';
                         recoCards.style.display = 'grid';
-                        recoCards.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
-                        recoCards.style.gap = '20px';
                         recoCards.innerHTML = '';
                         recoData.recommendations.forEach(item => {
                             recoCards.innerHTML += `
-                                <div class="menu-card" style="margin-bottom: 0;">
-                                    <div class="menu-img-wrapper">
-                                        <img src="${item.image_url}" alt="${item.name}" class="menu-img" onerror="this.src='/static/images/default.jpg'">
-                                    </div>
-                                    <div class="menu-info">
-                                        <h3 class="menu-name">${item.name}</h3>
-                                        <div class="menu-price">₹${item.price}</div>
+                                <div class="ai-card">
+                                    <img src="${item.image_url}" alt="${item.name}" onerror="this.src='/static/images/default.jpg'">
+                                    <div class="ai-card-body">
+                                        <h3 style="margin:0 0 4px 0;font-size:14px;color:#333;">${item.name}</h3>
+                                        <div style="font-weight:700;color:#2e7d32;">₹${item.price}</div>
                                     </div>
                                 </div>
                             `;
