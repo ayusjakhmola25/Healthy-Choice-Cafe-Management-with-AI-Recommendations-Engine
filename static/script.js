@@ -1071,6 +1071,12 @@ async function processCardPayment(event) {
         if (!saveResponse.ok) {
             throw new Error('Failed to save order');
         }
+        
+        const saveData = await saveResponse.json();
+        let successMessage = 'Card payment successful! Your order has been placed. Invoice downloaded.';
+        if (saveData && saveData.message) {
+            successMessage = saveData.message + '\n\n✅ Invoice downloaded.';
+        }
 
         // Generate and download invoice
         await generateAndDownloadInvoice('Card Payment', customerName, customerMobile);
@@ -1079,7 +1085,7 @@ async function processCardPayment(event) {
         await saveOrder('Paid', 'Card Payment');
 
         // Simulate payment processing
-        alert('Card payment successful! Your order has been placed. Invoice downloaded.');
+        alert(successMessage);
 
         // Clear cart
         localStorage.removeItem('cart');
@@ -1147,6 +1153,12 @@ async function processCodPayment() {
             if (!saveResponse.ok) {
                 throw new Error('Failed to save order');
             }
+            
+            const saveData = await saveResponse.json();
+            let successMessage = 'Cash on Delivery order confirmed! Your order will be delivered in 30-45 minutes. Invoice downloaded.';
+            if (saveData && saveData.message) {
+                successMessage = saveData.message + '\n\n✅ Invoice downloaded. Delivery in 30-45 mins.';
+            }
 
             // Generate and download invoice
             await generateAndDownloadInvoice('Cash on Delivery', customerName, customerMobile);
@@ -1154,7 +1166,7 @@ async function processCodPayment() {
             // Save order to localStorage for display
             await saveOrder('Paid', 'Cash on Delivery');
 
-            alert('Cash on Delivery order confirmed! Your order will be delivered in 30-45 minutes. Invoice downloaded.');
+            alert(successMessage);
 
             // Clear cart
             localStorage.removeItem('cart');
@@ -1232,13 +1244,19 @@ async function processUpiPayment() {
                 throw new Error('Failed to process UPI order');
             }
 
+            const saveData = await saveResponse.json();
+            let successMessage = 'UPI payment successful! Your order has been placed and invoice sent to WhatsApp.';
+            if (saveData && saveData.message) {
+                successMessage = saveData.message + '\n\n✅ Invoice sent to WhatsApp & Downloaded.';
+            }
+
             // Generate and download invoice locally
             await generateAndDownloadInvoice('UPI / Google Pay', customerName, customerMobile);
 
             // Save order to localStorage for display
             await saveOrder('Paid', 'UPI / Google Pay');
 
-            alert('UPI payment successful! Your order has been placed and invoice sent to WhatsApp.');
+            alert(successMessage);
 
             // Clear cart
             localStorage.removeItem('cart');

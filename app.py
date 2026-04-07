@@ -1063,7 +1063,54 @@ def save_order():
     # if mobile:
     #     send_payment_success(mobile, name or "Customer")
 
-    return jsonify({'success': True, 'message': 'Payment successful', 'order_id': order_id})
+    cart = []
+    if order_data:
+        import json
+        try:
+            cart = json.loads(order_data) if isinstance(order_data, str) else order_data
+        except:
+            pass
+
+    # 🎯 HEALTHY COINS LOGIC (FINAL FIX)
+    healthy_items = 0
+
+    for item in cart:
+        cursor.execute("""
+            SELECT * FROM menu_items WHERE id=%s
+        """, (item.get("id"),))
+        
+        result = cursor.fetchone()
+        
+        if result and (result.get("is_healthy") == 1 or result.get("diet_type") == "diet"):
+            healthy_items += int(item.get("quantity", 1))
+
+    # 1 item = 10 coins
+    coins_earned = healthy_items * 10
+
+    # cap (avoid abuse)
+    coins_earned = min(coins_earned, 100)
+
+    if user_id and coins_earned > 0:
+        cursor.execute(
+            "UPDATE users SET health_coins = health_coins + %s WHERE id=%s",
+            (coins_earned, user_id)
+        )
+        db.commit()
+
+    # 💎 Professional message (FINAL)
+    message = "Payment successful."
+
+    if coins_earned > 0:
+        message += f"""
+
+🎉 Well Done!
+
+You've earned **{coins_earned} Healthy Coins** for choosing nutritious food.
+
+Keep making smart choices to unlock rewards, discounts, and exclusive benefits. 💚
+"""
+
+    return jsonify({'success': True, 'message': message, 'order_id': order_id})
 
 @app.route('/upi-payment', methods=['POST'])
 def upi_payment():
@@ -1114,9 +1161,56 @@ def upi_payment():
     # if whatsapp_mobile:
     #     send_payment_success(whatsapp_mobile, name or "Customer")
 
+    cart = []
+    if order_data:
+        import json
+        try:
+            cart = json.loads(order_data) if isinstance(order_data, str) else order_data
+        except:
+            pass
+
+    # 🎯 HEALTHY COINS LOGIC (FINAL FIX)
+    healthy_items = 0
+
+    for item in cart:
+        cursor.execute("""
+            SELECT * FROM menu_items WHERE id=%s
+        """, (item.get("id"),))
+        
+        result = cursor.fetchone()
+        
+        if result and (result.get("is_healthy") == 1 or result.get("diet_type") == "diet"):
+            healthy_items += int(item.get("quantity", 1))
+
+    # 1 item = 10 coins
+    coins_earned = healthy_items * 10
+
+    # cap (avoid abuse)
+    coins_earned = min(coins_earned, 100)
+
+    if user_id and coins_earned > 0:
+        cursor.execute(
+            "UPDATE users SET health_coins = health_coins + %s WHERE id=%s",
+            (coins_earned, user_id)
+        )
+        db.commit()
+
+    # 💎 Professional message (FINAL)
+    message = "Payment successful."
+
+    if coins_earned > 0:
+        message += f"""
+
+🎉 Well Done!
+
+You've earned **{coins_earned} Healthy Coins** for choosing nutritious food.
+
+Keep making smart choices to unlock rewards, discounts, and exclusive benefits. 💚
+"""
+
     return jsonify({
         'success': True, 
-        'message': 'UPI Payment successful.', 
+        'message': message, 
         'order_id': order_id
     })
 
@@ -1293,96 +1387,89 @@ def get_user_stats_api():
         'preference': preference
     })
 
+def generate_recommendations(user_id=None, context=None):
+    import pandas as pd
+    from sklearn.metrics.pairwise import cosine_similarity
+    from sklearn.preprocessing import StandardScaler
+
+    cursor.execute("""
+        SELECT id, name, price, image_url, calories, protein, carbs, fats, diet_type
+        FROM menu_items WHERE is_active = 1
+    """)
+    items = cursor.fetchall()
+
+    if not items:
+        return []
+
+    df = pd.DataFrame(items)
+
+    diet_map = {'veg': 1, 'diet': 2, 'non-veg': 3, 'nondiet': 4}
+    df['diet_num'] = df['diet_type'].map(diet_map).fillna(0)
+
+    features = df[['calories', 'protein', 'carbs', 'fats', 'diet_num']].fillna(0)
+
+    scaler = StandardScaler()
+    scaled = scaler.fit_transform(features)
+
+    sim_matrix = cosine_similarity(scaled)
+
+    # 🧠 CASE 1: user history
+    if user_id:
+        cursor.execute("""
+            SELECT DISTINCT oi.menu_item_id
+            FROM order_items oi
+            JOIN orders o ON oi.order_id = o.id
+            WHERE o.user_id=%s
+        """, (user_id,))
+        ordered_ids = [r['menu_item_id'] for r in cursor.fetchall()]
+
+        if ordered_ids:
+            scores = {}
+            for i, item_id in enumerate(df['id']):
+                if item_id in ordered_ids:
+                    for j, score in enumerate(sim_matrix[i]):
+                        if df.iloc[j]['id'] not in ordered_ids:
+                            scores[j] = scores.get(j, 0) + score
+
+            if scores:
+                top_indices = sorted(scores, key=scores.get, reverse=True)[:5]
+                return df.iloc[top_indices].to_dict('records')
+
+    # 🧠 CASE 2: chatbot context (BMI logic)
+    if context:
+        weight = float(context.get('weight', 65))
+        bmi = weight / (1.68 ** 2)
+
+        if bmi < 18.5:
+            df = df.sort_values('calories', ascending=False)
+        elif bmi < 25:
+            df = df.sort_values('protein', ascending=False)
+        else:
+            df = df.sort_values('calories', ascending=True)
+
+        return df.head(5).to_dict('records')
+
+    # 🧠 CASE 3: fallback
+    return df.sample(min(5, len(df))).to_dict('records')
+
 @app.route('/api/user/recommendations', methods=['GET'])
 def get_user_recommendations_api():
     mobile = request.args.get('mobile')
+    user_id = None
+    if mobile:
+        cursor.execute("SELECT id FROM users WHERE mobile=%s", (mobile,))
+        user_row = cursor.fetchone()
+        if user_row:
+            user_id = user_row['id']
 
-    try:
-        # ── Step 1: User ki past ordered items IDs nikalo ──
-        ordered_ids = []
-        if mobile:
-            cursor.execute("SELECT id FROM users WHERE mobile=%s", (mobile,))
-            user = cursor.fetchone()
-            if user:
-                cursor.execute("""
-                    SELECT DISTINCT oi.menu_item_id
-                    FROM order_items oi
-                    JOIN orders o ON oi.order_id = o.id
-                    WHERE o.user_id = %s
-                """, (user['id'],))
-                ordered_ids = [r['menu_item_id'] for r in cursor.fetchall()]
-
-        # ── Step 2: Saare active menu items + nutrition data fetch karo ──
-        cursor.execute("""
-            SELECT id, name, price, image_url,
-                   COALESCE(calories, 0) as calories,
-                   COALESCE(protein,  0) as protein,
-                   COALESCE(carbs,    0) as carbs,
-                   COALESCE(fats,     0) as fats,
-                   diet_type, category
-            FROM menu_items
-            WHERE is_active = 1
-        """)
-        all_items = cursor.fetchall()
-
-        if not all_items:
-            return jsonify({"recommendations": []})
-
-        # ── Step 3: Pandas DataFrame banao ──
-        df = pd.DataFrame(all_items)
-
-        # diet_type ko numeric banao
-        diet_map = {'veg': 1, 'diet': 2, 'non-veg': 3, 'nondiet': 4}
-        df['diet_num'] = df['diet_type'].map(diet_map).fillna(0)
-
-        # Features jo similarity ke liye use honge
-        features = df[['calories', 'protein', 'carbs', 'fats', 'diet_num']].fillna(0)
-
-        # ── Step 4: StandardScaler se normalize karo ──
-        scaler  = StandardScaler()
-        scaled  = scaler.fit_transform(features)
-
-        # ── Step 5: Cosine Similarity matrix banao ──
-        sim_matrix = cosine_similarity(scaled)
-
-        # ── Step 6: Recommendations decide karo ──
-        if ordered_ids:
-            # User ne kuch order kiya hai — similar items dhundho
-            ordered_indices = df[df['id'].isin(ordered_ids)].index.tolist()
-
-            # Already ordered items ko exclude karo
-            scores = {}
-            for idx in ordered_indices:
-                for j, score in enumerate(sim_matrix[idx]):
-                    item_id = df.iloc[j]['id']
-                    if item_id not in ordered_ids:
-                        scores[j] = scores.get(j, 0) + score
-
-            if scores:
-                top_indices = sorted(scores, key=scores.get, reverse=True)[:6]
-                recommended = df.iloc[top_indices].to_dict('records')
-            else:
-                # Fallback — top rated by nutrition
-                recommended = df[~df['id'].isin(ordered_ids)].head(6).to_dict('records')
-        else:
-            # Naya user — popular/balanced items show karo
-            # protein aur low calories ke hisaab se sort karo
-            df['score'] = df['protein'] - (df['calories'] * 0.01)
-            recommended = df.sort_values('score', ascending=False).head(6).to_dict('records')
-
-        # ── Step 7: Image path fix karo ──
-        for item in recommended:
-            if item.get('image_url') and '/static/images/' not in str(item['image_url']):
-                item['image_url'] = '/static/images/' + str(item['image_url']).split('/')[-1]
-
-        return jsonify({"recommendations": recommended})
-
-    except Exception as e:
-        print(f"Recommendation error: {e}")
-        # Fallback — random active items
-        cursor.execute("SELECT id, name, price, image_url FROM menu_items WHERE is_active=1 ORDER BY RAND() LIMIT 6")
-        items = cursor.fetchall()
-        return jsonify({"recommendations": items})
+    recommendations = generate_recommendations(user_id=user_id)
+    
+    # Image path fix karo
+    for item in recommendations:
+        if item.get('image_url') and '/static/images/' not in str(item['image_url']):
+            item['image_url'] = '/static/images/' + str(item['image_url']).split('/')[-1]
+            
+    return jsonify({"recommendations": recommendations})
 
 # ── Health Coins: Apply Discount ────────────────────────
 @app.route('/api/apply-coins', methods=['POST'])
@@ -1438,6 +1525,63 @@ def deduct_coins():
 def welcome():
     return jsonify({'message': 'Welcome to Cafe Zone!'})
 
+def ask_claude(user_message, context):
+    """Fallback AI layer using Claude API for smart cafe assistant responses."""
+    try:
+        api_key = os.getenv("CLAUDE_API_KEY")
+        if not api_key:
+            return "I'm sorry, I couldn't process that. Please try again or type 'hi' to restart."
+
+        # Build context info from collected user data
+        context_info = ""
+        if context.get('age'):
+            context_info += f" User age: {context['age']}."
+        if context.get('weight'):
+            context_info += f" User weight: {context['weight']}kg."
+        if context.get('oily'):
+            context_info += f" Oily food preference: {context['oily']}."
+        if context.get("recommendations"):
+            context_info += f" Recommended items: {context['recommendations']}"
+
+        system_prompt = (
+            "You are a smart cafe sales assistant. "
+            "Your goal is to increase order value. "
+            "Always suggest food items, combos, or add-ons. "
+            "Keep replies short (max 2 lines). "
+            "Use user's health data if available. "
+            f"{context_info}"
+        )
+
+        response = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
+            json={
+                "model": "claude-3-haiku-20240307",
+                "max_tokens": 150,
+                "system": system_prompt,
+                "messages": [
+                    {"role": "user", "content": user_message}
+                ]
+            },
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            return result["content"][0]["text"]
+        else:
+            print(f"Claude API error: {response.status_code} - {response.text}")
+            return "Try asking about food, diet, or menu items."
+
+    except Exception as e:
+        print(f"Claude API exception: {e}")
+        return "Try asking about food, diet, or menu items."
+
+
 @app.route('/api/chatbot', methods=['POST'])
 def chatbot_api():
     data = request.json
@@ -1488,52 +1632,12 @@ def chatbot_api():
         # Decide the strategy
         if bmi < 18.5:
             goal = "gain weight"
-            sort_key = 'calories'
-            sort_reverse = True
         elif bmi < 25:
             goal = "maintain healthy weight"
-            sort_key = 'protein'
-            sort_reverse = True
         else:
             goal = "lose weight"
-            sort_key = 'calories'
-            sort_reverse = False
-            
-        # Fetch items from DB
-        menu_items_list = []
-        try:
-            conn = db_pool.get_connection()
-            cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT name, price, protein, carbs, fats, calories, diet_type FROM menu_items WHERE is_active = 1")
-            menu_items_list = cur.fetchall()
-            cur.close()
-            conn.close()
-        except:
-            pass
-            
-        if not menu_items_list:
-            return jsonify({"reply": "I'm having trouble fetching the menu right now. Please try again later.", "context": context})
-            
-        # Deduplicate items by name to avoid showing double food items
-        unique_items = {}
-        for item in menu_items_list:
-            unique_items[item['name'].lower()] = item
-        menu_items_list = list(unique_items.values())
-            
-        # If user avoids oily food, filter out high fat items
-        if oily_pref == 'no':
-            menu_items_list = [i for i in menu_items_list if float(i.get('fats') or 0) < 15]
-            if not menu_items_list: # fallback
-                menu_items_list = [{"name": "Healthy Salad", "calories": 150, "protein": 10}, {"name": "Fruit Bowl", "calories": 120, "protein": 5}]
-                
-        sorted_items = sorted(menu_items_list, key=lambda x: float(x.get(sort_key, 0) or 0), reverse=sort_reverse)
-        
-        import random
-        top_pool = sorted_items[:12]
-        if len(top_pool) > 4:
-            top_items = random.sample(top_pool, 4)
-        else:
-            top_items = top_pool
+
+        top_items = generate_recommendations(context=context)
         
         # Save recommendations to context so we can validate their pick
         context['recommendations'] = [i['name'].lower() for i in top_items]
@@ -1565,6 +1669,14 @@ def chatbot_api():
         else:
             reply += "Awesome selection! This is a relatively lighter option that aligns well with your weight goals, keeping you full without excess calories. 🥗"
             
+        # 💰 AI Upselling Logic (Increase Order Value)
+        reply += "<br><br>💡 **Pro Tip:** "
+        fast_food_keywords = ['burger', 'pizza', 'sandwich', 'wrap', 'fries', 'pasta']
+        if any(fw in picked_item.lower() for fw in fast_food_keywords):
+            reply += "Make it a meal! Add **Crispy Sweet Potato Fries + Refreshing Drink** to complete your order. 🍟🥤"
+        else:
+            reply += "Boost your results! Adding a **Whey Protein Shake** or **Fresh Detox Juice** goes perfectly with this. 🥤💪"
+            
         reply += "<br><br>Feel free to say 'hi' again if you want to restart!"
         context['state'] = 'DONE' # End of flow
         
@@ -1575,7 +1687,12 @@ def chatbot_api():
         context['state'] = 'INIT'
         return chatbot_api()
     
-    return jsonify({"reply": "I'm not sure what you mean.", "context": context})
+    # Fallback: Use Claude AI for smart responses
+    if len(user_message) < 3:
+        return jsonify({"reply": "Please type properly", "context": context})
+
+    claude_reply = ask_claude(user_message, context)
+    return jsonify({"reply": claude_reply, "context": context})
 
 
 @app.route('/cafeteria')

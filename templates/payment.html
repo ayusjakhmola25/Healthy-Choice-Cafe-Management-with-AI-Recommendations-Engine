@@ -508,8 +508,9 @@ async function downloadInvoice() {
     try {
         // 1) Save the order to database
         const orderId = localStorage.getItem('currentOrderId');
+        let successMessage = '✅ Payment successful! Your order has been placed.';
         if (orderId) {
-            await fetch('/save-order', {
+            const saveResp = await fetch('/save-order', {
                 method:  'POST',
                 headers: {'Content-Type': 'application/json'},
                 body:    JSON.stringify({
@@ -524,6 +525,10 @@ async function downloadInvoice() {
                     diet_preference: dietPreference
                 })
             });
+            const saveData = await saveResp.json();
+            if (saveData && saveData.message) {
+                successMessage = saveData.message;
+            }
         }
 
         // 2) Generate and download the invoice PDF
@@ -552,7 +557,7 @@ async function downloadInvoice() {
         localStorage.removeItem('currentOrderId');
 
         // 4) Show success message and redirect to dashboard (cafeteria)
-        alert('✅ Payment successful! Your order has been placed.');
+        alert(successMessage);
         window.location.href = '/cafeteria';
 
     } catch(e) {
