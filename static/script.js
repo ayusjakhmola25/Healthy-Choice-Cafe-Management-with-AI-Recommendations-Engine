@@ -609,6 +609,9 @@ async function loadFoodItems() {
         }
 
         let items = await response.json();
+        // Store globally for chatbot/action lookups
+        window.allMenuItems = items;
+
         if (!items || items.length === 0) {
             menuGrid.innerHTML = '<p style="padding:1rem;color:#6b7280;">No items available.</p>';
             return;
@@ -1085,14 +1088,13 @@ async function processCardPayment(event) {
         await saveOrder('Paid', 'Card Payment');
 
         // Simulate payment processing
-        alert(successMessage);
-
-        // Clear cart
-        localStorage.removeItem('cart');
-        cart = [];
-
-        // Redirect to orders
-        window.location.href = '/orders';
+        // Show custom modal and then redirect to dashboard
+        if (typeof showCustomPopup === 'function') {
+            showCustomPopup(successMessage, '/orders');
+        } else {
+            alert(successMessage);
+            window.location.href = '/orders';
+        }
     } catch (error) {
         alert('Error processing payment: ' + error.message);
     }
@@ -1166,14 +1168,16 @@ async function processCodPayment() {
             // Save order to localStorage for display
             await saveOrder('Paid', 'Cash on Delivery');
 
-            alert(successMessage);
-
             // Clear cart
             localStorage.removeItem('cart');
             cart = [];
 
-            // Redirect to orders
-            window.location.href = '/orders';
+            if (typeof showCustomPopup === 'function') {
+                showCustomPopup(successMessage, '/orders');
+            } else {
+                alert(successMessage);
+                window.location.href = '/orders';
+            }
         } catch (error) {
             alert('Error processing COD order: ' + error.message);
         }
@@ -1256,14 +1260,16 @@ async function processUpiPayment() {
             // Save order to localStorage for display
             await saveOrder('Paid', 'UPI / Google Pay');
 
-            alert(successMessage);
-
             // Clear cart
             localStorage.removeItem('cart');
             cart = [];
 
-            // Redirect to orders
-            window.location.href = '/orders';
+            if (typeof showCustomPopup === 'function') {
+                showCustomPopup(successMessage, '/orders');
+            } else {
+                alert(successMessage);
+                window.location.href = '/orders';
+            }
         } catch (error) {
             alert('Error processing UPI payment: ' + error.message);
         }
@@ -2026,3 +2032,54 @@ async function loadOrders() {
         loadOrdersPage();
     }
 }
+
+// Live Search Implementation for Cafeteria Page
+document.addEventListener("DOMContentLoaded", () => {
+    const searchField = document.querySelector(".search-field");
+    if (searchField) {
+        searchField.addEventListener("input", (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            const items = document.querySelectorAll(".menu-item");
+            let hasResults = false;
+            
+            items.forEach(item => {
+                const title = item.querySelector(".item-title")?.textContent.toLowerCase() || "";
+                const description = item.querySelector(".item-description")?.textContent.toLowerCase() || "";
+                
+                if (title.includes(query) || description.includes(query)) {
+                    // Restore original display from style.css
+                    item.style.display = ""; 
+                    hasResults = true;
+                } else {
+                    item.style.display = "none";
+                }
+            });
+            
+            // Handle "No Results" message
+            const menuGrid = document.querySelector(".menu-grid");
+            let noResultsMsg = document.getElementById("no-results-message");
+            
+            if (!hasResults && query !== "") {
+                if (!noResultsMsg) {
+                    noResultsMsg = document.createElement("div");
+                    noResultsMsg.id = "no-results-message";
+                    noResultsMsg.style.cssText = "padding: 3rem; color: #6b7280; text-align: center; width: 100%; grid-column: 1 / -1; background: #f9fafb; border-radius: 12px; border: 1px dashed #d1d5db; margin: 20px 0;";
+                    noResultsMsg.innerHTML = `
+                        <i class="fas fa-search" style="font-size: 2rem; color: #ced4da; margin-bottom: 15px; display: block;"></i>
+                        <h4 style="margin: 0; color: #34495e;">No dishes found</h4>
+                        <p style="margin: 5px 0 15px 0;">We couldn't find anything matching "<strong>${e.target.value}</strong>"</p>
+                        <button onclick="document.querySelector('.search-field').value=''; document.querySelector('.search-field').dispatchEvent(new Event('input'));" 
+                                style="color: #2e7d32; font-weight: bold; background: none; border: none; cursor: pointer; text-decoration: underline;">
+                            Show all items
+                        </button>
+                    `;
+                    menuGrid.appendChild(noResultsMsg);
+                } else {
+                    noResultsMsg.querySelector("strong").textContent = e.target.value;
+                }
+            } else if (noResultsMsg) {
+                noResultsMsg.remove();
+            }
+        });
+    }
+});

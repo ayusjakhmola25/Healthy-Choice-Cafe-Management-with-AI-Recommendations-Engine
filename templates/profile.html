@@ -92,6 +92,52 @@
                         <button type="submit" class="green-btn">Update Profile</button>
                         <button type="button" class="cancel-button" onclick="toggleEditMode()">Cancel</button>
                     </form>
+
+                    <!-- Profile Dashboard Section (Moved here for better layout) -->
+                    <div class="profile-dashboard">
+                      <div class="dashboard-row">
+                        <div class="dashboard-card shadow-sm">
+                          <h3>🎯 Health Score</h3>
+                          <p class="big-text" id="healthScore">0 / 100</p>
+                          <span class="status good" id="healthScoreStatus">Good</span>
+                        </div>
+                        <div class="dashboard-card shadow-sm">
+                          <h3>💰 Healthy Coins</h3>
+                          <p class="big-text" id="coins">0</p>
+                          <button class="dash-btn" id="redeemBtn" onclick="window.location.href='/cafeteria'">Redeem</button>
+                        </div>
+                      </div>
+
+                      <div class="dashboard-card full shadow-sm">
+                        <h3>🧠 AI Suggestions</h3>
+                        <ul id="aiSuggestions" class="dash-list">
+                          <li>Loading suggestions...</li>
+                        </ul>
+                      </div>
+
+                      <div class="dashboard-row">
+                        <div class="dashboard-card shadow-sm">
+                          <h3>📊 Recent Orders</h3>
+                          <ul id="recentOrders" class="dash-list">
+                            <li>Loading recent orders...</li>
+                          </ul>
+                        </div>
+                        <div class="dashboard-card shadow-sm">
+                          <h3>🏆 Achievements</h3>
+                          <ul id="achievements" class="dash-list">
+                            <li>Loading achievements...</li>
+                          </ul>
+                        </div>
+                      </div>
+
+                      <div class="dashboard-card full shadow-sm">
+                        <h3>⚡ Quick Actions</h3>
+                        <div class="dash-actions">
+                          <button class="dash-btn-outline" id="orderAgainBtn" onclick="window.location.href='/cafeteria'">Order Again</button>
+                          <button class="dash-btn-outline" id="viewRecoBtn" onclick="document.getElementById('aiReco').scrollIntoView({behavior:'smooth'})">Recommendations</button>
+                        </div>
+                      </div>
+                    </div>
                 </div>
 
                 <div class="profile-side">
@@ -153,6 +199,7 @@
                 </div>
             </section>
 
+
             <section class="ai-reco" id="aiReco">
                 <div class="ai-reco-header">
                     <span style="font-size:18px;">🧠 AI Recommendations for You</span>
@@ -166,9 +213,7 @@
         </main>
     </div>
 
-    <footer>
-        <p>&#9733; Experience the HangOut Cafe difference. Quality You Can Taste | &copy; 2025 HangOut Cafe</p>
-    </footer>
+
 
     <script src="/static/script.js"></script>
     <script>
@@ -278,6 +323,63 @@
                             scales: { y: { beginAtZero: true } }
                         }
                     });
+                }
+
+                // --- POPULATE DASHBOARD DATA ---
+                if (document.getElementById("healthScore")) {
+                    document.getElementById("healthScore").textContent = `${statsData.healthScore} / 100`;
+                    const scoreStatus = document.getElementById("healthScoreStatus");
+                    if (statsData.healthScore >= 80) {
+                        scoreStatus.textContent = "Excellent";
+                        scoreStatus.className = "status good";
+                    } else if (statsData.healthScore >= 60) {
+                        scoreStatus.textContent = "Good";
+                        scoreStatus.className = "status average";
+                    } else {
+                        scoreStatus.textContent = "Improve";
+                        scoreStatus.className = "status bad";
+                    }
+
+                    document.getElementById("coins").textContent = data.health_coins || 0;
+
+                    // AI Suggestions
+                    const suggestionList = document.getElementById("aiSuggestions");
+                    suggestionList.innerHTML = "";
+                    if (statsData.aiSuggestions && statsData.aiSuggestions.length > 0) {
+                        statsData.aiSuggestions.forEach(s => {
+                            const li = document.createElement("li");
+                            li.textContent = s;
+                            suggestionList.appendChild(li);
+                        });
+                    } else {
+                        suggestionList.innerHTML = "<li>No suggestions yet.</li>";
+                    }
+
+                    // Recent Orders
+                    const orderList = document.getElementById("recentOrders");
+                    orderList.innerHTML = "";
+                    if (statsData.recentOrders && statsData.recentOrders.length > 0) {
+                        statsData.recentOrders.forEach(o => {
+                            const li = document.createElement("li");
+                            li.textContent = `${o.name} (${o.calories} kcal)`;
+                            orderList.appendChild(li);
+                        });
+                    } else {
+                        orderList.innerHTML = "<li>No orders yet.</li>";
+                    }
+
+                    // Achievements
+                    const achievementList = document.getElementById("achievements");
+                    achievementList.innerHTML = "";
+                    if (statsData.achievements && statsData.achievements.length > 0) {
+                        statsData.achievements.forEach(a => {
+                            const li = document.createElement("li");
+                            li.textContent = a;
+                            achievementList.appendChild(li);
+                        });
+                    } else {
+                        achievementList.innerHTML = "<li>Keep eating healthy!</li>";
+                    }
                 }
 
                 // AI Recommendations

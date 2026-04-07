@@ -556,9 +556,13 @@ async function downloadInvoice() {
         localStorage.removeItem('cart');
         localStorage.removeItem('currentOrderId');
 
-        // 4) Show success message and redirect to dashboard (cafeteria)
-        alert(successMessage);
-        window.location.href = '/cafeteria';
+        // 4) Show custom modal and then redirect to dashboard
+        if (typeof showCustomPopup === 'function') {
+            showCustomPopup(successMessage, '/cafeteria');
+        } else {
+            alert(successMessage);
+            window.location.href = '/cafeteria';
+        }
 
     } catch(e) {
         alert('Network error. Please try again.');

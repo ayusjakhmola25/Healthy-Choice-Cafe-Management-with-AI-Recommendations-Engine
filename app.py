@@ -1374,6 +1374,64 @@ def get_user_stats_api():
         total_protein = total_carbs = total_fats = total_calories = 0
         preference = 'Mixed'
 
+    # Recent orders (last 5 items)
+    recent_orders = []
+    if total_orders > 0:
+        cursor.execute("""
+            SELECT mi.name, mi.calories, o.created_at
+            FROM order_items oi
+            JOIN orders o ON oi.order_id = o.id
+            JOIN menu_items mi ON oi.menu_item_id = mi.id
+            WHERE o.user_id=%s AND o.order_status IN ('DELIVERED', 'PAID', 'COD_CONFIRMED')
+            ORDER BY o.created_at DESC
+            LIMIT 5
+        """, (user_id,))
+        recent_orders = [{'name': r['name'], 'calories': int(r['calories'] or 0)} for r in cursor.fetchall()]
+
+    # Health Score calculation
+    health_score = 50
+    if total_orders > 0:
+        if avg_protein > 20:
+            health_score += 20
+        if avg_calories < 500:
+            health_score += 20
+        if preference.lower() == 'diet':
+            health_score += 10
+    health_score = min(health_score, 100)
+
+    # AI Suggestions based on macros
+    ai_suggestions = []
+    if total_orders > 0:
+        if avg_protein < 15:
+            ai_suggestions.append("Increase protein intake — try Paneer Bowl or Grilled Chicken")
+        if avg_calories > 600:
+            ai_suggestions.append("Your avg calories are high — switch to lighter meals like Salads")
+        if avg_carbs > 60:
+            ai_suggestions.append("Reduce carb-heavy items — try Oats Bowl or Smoothies")
+        if avg_fats > 20:
+            ai_suggestions.append("Cut down on fats — avoid fried items, try grilled options")
+        if preference.lower() != 'diet':
+            ai_suggestions.append("Try more diet-friendly items to earn extra Health Coins 💚")
+        if not ai_suggestions:
+            ai_suggestions.append("Great balance! Keep ordering nutritious meals 🎯")
+    else:
+        ai_suggestions.append("Place your first order to get personalized AI suggestions!")
+
+    # Achievements
+    achievements = []
+    if total_orders >= 1:
+        achievements.append("🥗 Healthy Starter")
+    if total_orders >= 5:
+        achievements.append("🔥 5 Orders Completed")
+    if total_orders >= 10:
+        achievements.append("⭐ Regular Customer")
+    if total_orders >= 25:
+        achievements.append("👑 Cafe Champion")
+    if preference.lower() == 'diet':
+        achievements.append("🥬 Diet Master")
+    if not achievements:
+        achievements.append("🎯 Place your first order!")
+
     return jsonify({
         'totalOrders': total_orders,
         'avgProtein': round(avg_protein, 1),
@@ -1384,7 +1442,11 @@ def get_user_stats_api():
         'totalCarbs': round(total_carbs, 1),
         'totalFats': round(total_fats, 1),
         'totalCalories': round(total_calories),
-        'preference': preference
+        'preference': preference,
+        'recentOrders': recent_orders,
+        'healthScore': health_score,
+        'aiSuggestions': ai_suggestions,
+        'achievements': achievements
     })
 
 def generate_recommendations(user_id=None, context=None):
@@ -1525,34 +1587,47 @@ def deduct_coins():
 def welcome():
     return jsonify({'message': 'Welcome to Cafe Zone!'})
 
+SYSTEM_PROMPT = """
+You are a professional, polite, and helpful cafe assistant.
+
+Rules:
+- Talk like a human, not a robot
+- Keep replies short (2–3 lines max)
+- Be friendly and humble: "Sure!", "Great choice!", "No worries 😊"
+- Understand intent before replying
+- Suggest food based on user goal (weight loss, muscle gain, taste)
+- Always try light upsell (combo/add-on) naturally
+
+Goal:
+Help user choose food and improve order value.
+"""
+
+def ask_rule_based(user_message, context):
+    msg = user_message.lower()
+    if 'menu' in msg or 'food' in msg or 'eat' in msg:
+        return "We have a wonderful variety of healthy options! Please check out our Menu in the sidebar. 🥗"
+    elif 'hi' in msg or 'hello' in msg:
+        return "Hello there! I'm here to help you find the best food for your goals! ✨"
+    return "I'm your friendly cafe bot! 🤖 Try asking me about our food or menu!"
+
 def ask_claude(user_message, context):
-    """Fallback AI layer using Claude API for smart cafe assistant responses."""
+    import os, requests
+    api_key = os.getenv("CLAUDE_API_KEY")
+
+    if not api_key:
+        return ask_rule_based(user_message, context)
+
+    context_info = f"""
+User info:
+- Age: {context.get('age', 'unknown')}
+- Weight: {context.get('weight', 'unknown')}
+- Oily food: {context.get('oily', 'unknown')}
+"""
+    history = context.get("history", [])
+    history.append({"role": "user", "content": user_message})
+
     try:
-        api_key = os.getenv("CLAUDE_API_KEY")
-        if not api_key:
-            return "I'm sorry, I couldn't process that. Please try again or type 'hi' to restart."
-
-        # Build context info from collected user data
-        context_info = ""
-        if context.get('age'):
-            context_info += f" User age: {context['age']}."
-        if context.get('weight'):
-            context_info += f" User weight: {context['weight']}kg."
-        if context.get('oily'):
-            context_info += f" Oily food preference: {context['oily']}."
-        if context.get("recommendations"):
-            context_info += f" Recommended items: {context['recommendations']}"
-
-        system_prompt = (
-            "You are a smart cafe sales assistant. "
-            "Your goal is to increase order value. "
-            "Always suggest food items, combos, or add-ons. "
-            "Keep replies short (max 2 lines). "
-            "Use user's health data if available. "
-            f"{context_info}"
-        )
-
-        response = requests.post(
+        res = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
                 "x-api-key": api_key,
@@ -1560,39 +1635,54 @@ def ask_claude(user_message, context):
                 "content-type": "application/json"
             },
             json={
-                "model": "claude-3-haiku-20240307",
+                "model": "claude-haiku-4-5-20251001",
                 "max_tokens": 150,
-                "system": system_prompt,
-                "messages": [
-                    {"role": "user", "content": user_message}
-                ]
+                "system": SYSTEM_PROMPT + context_info,
+                "messages": history[-6:]
             },
             timeout=10
         )
-
-        if response.status_code == 200:
-            result = response.json()
-            return result["content"][0]["text"]
-        else:
-            print(f"Claude API error: {response.status_code} - {response.text}")
-            return "Try asking about food, diet, or menu items."
-
+        data = res.json()
+        reply = data["content"][0]["text"]
+        history.append({"role": "assistant", "content": reply})
+        context["history"] = history
+        return reply
     except Exception as e:
-        print(f"Claude API exception: {e}")
-        return "Try asking about food, diet, or menu items."
+        print(f"Claude API error: {e}")
+        return ask_rule_based(user_message, context)
+
+
+def find_item_by_name(name):
+    """Helper to find menu items by keyword match in their name."""
+    try:
+        from app import get_cursor
+        c = get_cursor()
+        c.execute("SELECT id, name FROM menu_items WHERE is_active=1")
+        items = c.fetchall()
+        name = name.lower()
+        for it in items:
+            if it["name"].lower() in name or name in it["name"].lower():
+                return it
+        return None
+    except Exception as e:
+        print(f"Error in find_item_by_name: {e}")
+        return None
 
 
 @app.route('/api/chatbot', methods=['POST'])
 def chatbot_api():
+    import re as re_mod
     data = request.json
     user_message = data.get('message', '').strip().lower()
     context = data.get('context', {})
     user_name = data.get('user_name', 'Guest')
     
+    # ❌ avoid garbage input
+    if len(user_message) < 2:
+        return jsonify({"reply": "Could you please type a bit more? 😊", "context": context})
+
     state = context.get('state', 'INIT')
-    
-    import re as re_mod
-    
+
     if state == 'INIT':
         reply = f"Hi **{user_name}**! I am your AI Nutritionist. 🤖<br><br>I'll help you find the best food for your health. Let's start with your **age**. How old are you?"
         context['state'] = 'WAIT_AGE'
@@ -1604,21 +1694,18 @@ def chatbot_api():
             context['age'] = int(numbers[0])
             reply = f"Got it, {context['age']} years old.<br><br>Now, what is your **weight** (in kg)?"
             context['state'] = 'WAIT_WEIGHT'
-        else:
-            reply = "I didn't catch that. Please tell me your age in numbers. (e.g., 22)"
-        return jsonify({"reply": reply, "context": context})
-        
+            return jsonify({"reply": reply, "context": context})
+
     elif state == 'WAIT_WEIGHT':
         numbers = re_mod.findall(r'\d+\.?\d*', user_message)
         if numbers:
             context['weight'] = float(numbers[0])
             reply = f"Perfect, {context['weight']} kg.<br><br>One last question: Do you eat **oily / fried food** regularly? (yes / no)"
             context['state'] = 'WAIT_OILY'
-        else:
-            reply = "I didn't catch that. Please tell me your weight in numbers. (e.g., 65)"
-        return jsonify({"reply": reply, "context": context})
-        
+            return jsonify({"reply": reply, "context": context})
+
     elif state == 'WAIT_OILY':
+        # Purana wala — strict check nahi, 'no' check karo warna 'yes' assume karo
         oily_pref = 'no' if 'no' in user_message else 'yes'
         context['oily'] = oily_pref
         
@@ -1680,6 +1767,16 @@ def chatbot_api():
         reply += "<br><br>Feel free to say 'hi' again if you want to restart!"
         context['state'] = 'DONE' # End of flow
         
+        picked_db_item = find_item_by_name(picked_item)
+        if picked_db_item:
+            return jsonify({
+                "reply": reply, 
+                "context": context,
+                "action": "add_to_cart",
+                "item_id": picked_db_item["id"],
+                "item_name": picked_db_item["name"]
+            })
+            
         return jsonify({"reply": reply, "context": context})
         
     elif state == 'DONE':
@@ -1687,12 +1784,20 @@ def chatbot_api():
         context['state'] = 'INIT'
         return chatbot_api()
     
-    # Fallback: Use Claude AI for smart responses
-    if len(user_message) < 3:
-        return jsonify({"reply": "Please type properly", "context": context})
+    # ❌ avoid garbage input
+    if len(user_message) < 2:
+        return jsonify({"reply": "Could you please type a bit more? 😊", "context": context})
 
-    claude_reply = ask_claude(user_message, context)
-    return jsonify({"reply": claude_reply, "context": context})
+    # 🔥 Claude fallback (FINAL FIX)
+    try:
+        reply = ask_claude(user_message, context)
+    except:
+        reply = ask_rule_based(user_message, context)
+
+    return jsonify({
+        "reply": reply,
+        "context": context
+    })
 
 
 @app.route('/cafeteria')

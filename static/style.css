@@ -1984,3 +1984,152 @@ footer p {
     background: #f0f0f0;
     color: #333;
 }
+/* ===== Profile Page Dashboard Section (Left Column) ===== */
+.profile-dashboard {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1.5px dashed #edf2f7;
+}
+
+.dashboard-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.dashboard-card {
+    flex: 1;
+    background: #ffffff;
+    border: 1px solid #eef3f7;
+    border-radius: 12px;
+    padding: 16px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.dashboard-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.dashboard-card.full {
+    width: 100%;
+    margin-bottom: 12px;
+}
+
+.dashboard-card h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: #7b8b91;
+    font-weight: 700;
+}
+
+.big-text {
+    font-size: 24px;
+    font-weight: 800;
+    color: #34495E;
+    margin: 4px 0 8px 0;
+}
+
+.status {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.status.good {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.status.average {
+    background: #fff8e1;
+    color: #f57f17;
+}
+
+.status.bad {
+    background: #ffebee;
+    color: #c62828;
+}
+
+.dash-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.dash-list li {
+    font-size: 13px;
+    color: #5a6b72;
+    padding: 6px 0;
+    border-bottom: 1px solid #f9fbfd;
+}
+
+.dash-list li:last-child {
+    border-bottom: none;
+}
+
+.dash-list li::before {
+    content: "•";
+    color: #28a745;
+    font-weight: bold;
+    display: inline-block;
+    width: 1em;
+}
+
+.dash-btn {
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    background: linear-gradient(135deg, #28a745, #218838);
+    color: white;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    font-size: 13px;
+}
+
+.dash-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.dash-btn:active {
+    transform: translateY(0);
+}
+
+.dash-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.dash-btn-outline {
+    flex: 1;
+    padding: 10px;
+    background: transparent;
+    border: 1.5px solid #28a745;
+    color: #28a745;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.dash-btn-outline:hover {
+    background: #28a745;
+    color: white;
+}
+
+.shadow-sm {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+@media (max-width: 600px) {
+    .dashboard-row {
+        flex-direction: column;
+    }
+}

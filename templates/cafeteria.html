@@ -130,79 +130,105 @@
                 Hi there! I am your AI Nutritionist. Tell me your age, weight, and goals so I can recommend the best items from our menu for you!
             </div>
         </div>
-        <div style="display: flex; border-top: 1px solid #ddd; padding: 10px; background: white;">
-            <input type="text" id="chatbotInput" placeholder="Type your message..." style="flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 20px; outline: none; font-size: 14px;" onkeypress="if(event.key === 'Enter') sendChatbotMessage()">
-            <button onclick="sendChatbotMessage()" style="background: #2e7d32; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; margin-left: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-paper-plane"></i>
-            </button>
+            <div id="chatbotSuggestions" style="padding: 0 10px; display: flex; flex-wrap: wrap; gap: 5px; background: white;"></div>
+            <div style="display: flex; border-top: 1px solid #ddd; padding: 10px; background: white;">
+                <input type="text" id="chatbotInput" placeholder="Type your message..." style="flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 20px; outline: none; font-size: 14px;" onkeypress="if(event.key === 'Enter') sendChatbotMessage()">
+                <button onclick="sendChatbotMessage()" style="background: #2e7d32; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; margin-left: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
         </div>
-    </div>
-    
-    <script>
-        let chatContext = { state: 'INIT' };
-        
-        function formatChatReply(text) {
-            // Replace **text** with <b>text</b>
-            return text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-        }
-        
-        function toggleChatbot() {
-            const chatWin = document.getElementById('chatbotWindow');
-            chatWin.style.display = chatWin.style.display === 'none' || chatWin.style.display === '' ? 'flex' : 'none';
-            
-            // Auto trigger INIT on first open
-            if (chatWin.style.display === 'flex' && document.getElementById('chatbotMessages').children.length <= 1 && chatContext.state === 'INIT') {
-                sendChatbotMessage("hi", true);
+
+        <script>
+            let chatContext = { state: 'INIT' };
+
+            function formatChatReply(text) {
+                return text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
             }
-        }
-        
-        async function sendChatbotMessage(overrideMsg = null, silent = false) {
-            const inputField = document.getElementById('chatbotInput');
-            const message = overrideMsg || inputField.value.trim();
-            if(!message) return;
-            
-            const messagesContainer = document.getElementById('chatbotMessages');
-            
-            // Add user message if not silent initial call
-            if (!silent) {
-                messagesContainer.innerHTML += `<div style="background: #2e7d32; color: white; padding: 10px; border-radius: 10px; max-width: 80%; align-self: flex-end; font-size: 14px;">${message}</div>`;
-                inputField.value = '';
-            }
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            
-            // Add typing indicator
-            const typingId = 'typing-' + Date.now();
-            messagesContainer.innerHTML += `<div id="${typingId}" style="color: #666; font-size: 12px; padding: 5px; align-self: flex-start;"><i>AI is thinking...</i></div>`;
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            
-            // Get user_name
-            const user = JSON.parse(localStorage.getItem('user'));
-            const userName = user ? user.name : 'Guest';
-            
-            try {
-                const response = await fetch('/api/chatbot', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({message: message, context: chatContext, user_name: userName})
-                });
-                const data = await response.json();
-                
-                // Update context
-                if (data.context) {
-                    chatContext = data.context;
+
+            function toggleChatbot() {
+                const chatWin = document.getElementById('chatbotWindow');
+                chatWin.style.display = chatWin.style.display === 'none' || chatWin.style.display === '' ? 'flex' : 'none';
+                if (chatWin.style.display === 'flex' && document.getElementById('chatbotMessages').children.length <= 1 && chatContext.state === 'INIT') {
+                    sendChatbotMessage("hi", true);
                 }
-                
-                document.getElementById(typingId).remove();
-                
-                const formattedReply = formatChatReply(data.reply);
-                messagesContainer.innerHTML += `<div style="background: #e8f5e9; color: #333; padding: 10px; border-radius: 10px; max-width: 80%; align-self: flex-start; font-size: 14px; line-height: 1.4;">${formattedReply}</div>`;
-            } catch(e) {
-                document.getElementById(typingId).remove();
-                messagesContainer.innerHTML += `<div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 10px; max-width: 80%; align-self: flex-start; font-size: 14px;">Error communicating with AI server.</div>`;
             }
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-    </script>
+
+            async function sendChatbotMessage(overrideMsg = null, silent = false) {
+                const inputField = document.getElementById('chatbotInput');
+                const message = overrideMsg || inputField.value.trim();
+                if(!message) return;
+
+                const messagesContainer = document.getElementById('chatbotMessages');
+                const suggestionsContainer = document.getElementById('chatbotSuggestions');
+
+                if (!silent) {
+                    messagesContainer.innerHTML += `<div style="background: #2e7d32; color: white; padding: 10px; border-radius: 10px; max-width: 80%; align-self: flex-end; font-size: 14px;">${message}</div>`;
+                    inputField.value = '';
+                }
+                suggestionsContainer.innerHTML = '';
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                const typingId = 'typing-' + Date.now();
+                messagesContainer.innerHTML += `<div id="${typingId}" style="color: #666; font-size: 12px; padding: 5px; align-self: flex-start;"><i>AI is thinking...</i></div>`;
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                const user = JSON.parse(localStorage.getItem('user')) || {};
+                const userName = user.name || 'Guest';
+
+                try {
+                    const response = await fetch('/api/chatbot', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({message: message, context: chatContext, user_name: userName})
+                    });
+                    const data = await response.json();
+
+                    if(document.getElementById(typingId)) document.getElementById(typingId).remove();
+
+                    if (!data.reply) {
+                        messagesContainer.innerHTML += `<div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 10px; max-width: 80%; align-self: flex-start; font-size: 14px;">AI not responding</div>`;
+                        return;
+                    }
+
+                    if (data.context) chatContext = data.context;
+
+                    const formattedReply = formatChatReply(data.reply);
+                    
+                    if (data.reply.includes("⚠️")) {
+                        messagesContainer.innerHTML += `<div style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 10px; max-width: 80%; align-self: flex-start; font-size: 14px; border: 1px solid #ffeeba;">${formattedReply}</div>`;
+                    } else {
+                        messagesContainer.innerHTML += `<div style="background: #e8f5e9; color: #333; padding: 10px; border-radius: 10px; max-width: 80%; align-self: flex-start; font-size: 14px; line-height: 1.4;">${formattedReply}</div>`;
+                    }
+
+                    // --- INTERACTIVE ACTION HANDLING ---
+                    if (data.action === "add_to_cart") {
+                        showAddButton(data.item_id, data.item_name || "the item");
+                    }
+                } catch(e) {
+                    if(document.getElementById(typingId)) document.getElementById(typingId).remove();
+                    messagesContainer.innerHTML += `<div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 10px; max-width: 80%; align-self: flex-start; font-size: 14px;">AI not responding</div>`;
+                }
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            function showAddButton(itemId, name) {
+                let btn = document.createElement("button");
+                btn.innerHTML = `<i class="fas fa-plus"></i> Add ${name} to Cart`;
+                btn.style.cssText = "margin-top: 10px; padding: 8px 16px; background: #2e7d32; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: bold; width: 100%;";
+                btn.onclick = () => {
+                    const menu = window.allMenuItems || [];
+                    const item = menu.find(i => parseInt(i.id) === parseInt(itemId));
+                    if (item && typeof addToCart === 'function') {
+                        addToCart(item.id, item.name, item.price, item.image_url || "/static/images/default-food.jpg", item.protein || 0, item.carbs || 0, item.fats || 0, item.calories || 0);
+                        btn.innerHTML = `✅ Added ${name}!`;
+                        btn.style.background = "#81c784";
+                    }
+                };
+                document.getElementById('chatbotMessages').appendChild(btn);
+                document.getElementById('chatbotMessages').scrollTop = document.getElementById('chatbotMessages').scrollHeight;
+            }
+        </script>
 
 
     <script src="/static/script.js"></script>
