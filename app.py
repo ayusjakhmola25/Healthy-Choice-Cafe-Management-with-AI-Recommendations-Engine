@@ -1081,7 +1081,8 @@ def save_order():
         
         result = cursor.fetchone()
         
-        if result and (result.get("is_healthy") == 1 or result.get("diet_type") == "diet"):
+        # Fallback to diet_type as is_healthy might not be reliable for all items
+        if result and result.get("diet_type") == "diet":
             healthy_items += int(item.get("quantity", 1))
 
     # 1 item = 10 coins
@@ -1179,7 +1180,8 @@ def upi_payment():
         
         result = cursor.fetchone()
         
-        if result and (result.get("is_healthy") == 1 or result.get("diet_type") == "diet"):
+        # Fallback to diet_type as is_healthy might not be reliable for all items
+        if result and result.get("diet_type") == "diet":
             healthy_items += int(item.get("quantity", 1))
 
     # 1 item = 10 coins
