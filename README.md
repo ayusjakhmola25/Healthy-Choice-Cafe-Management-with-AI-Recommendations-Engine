@@ -175,13 +175,13 @@ PDF Invoice System
 ## Admin Dashboard
 
 <p align="center">
-  <img src="dashboard.jpeg" />
+  <img src="static/images/dashboard.jpeg" />
 </p>
 
 ## Invoice Generation
 
 <p align="center">
-  <img src="invoice.jpeg" />
+  <img src="static/images/invoice.jpeg" />
 </p>
 
 ---
