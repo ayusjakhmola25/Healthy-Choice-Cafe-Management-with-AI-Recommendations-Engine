@@ -169,13 +169,13 @@ PDF Invoice System
 ## Customer Dashboard
 
 <p align="center">
-  <img src="cart.jpeg" />
+  <img src="static/images/dashboard.jpeg" />
 </p>
 
 ## Admin Dashboard
 
 <p align="center">
-  <img src="static/images/dashboard.jpeg" />
+  <img src="static/images/dashboard1.jpeg" />
 </p>
 
 ## Invoice Generation
