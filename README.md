@@ -168,21 +168,21 @@ PDF Invoice System
 
 ## Customer Dashboard
 
-```text
-Insert customer dashboard screenshot here
-```
+<p align="center">
+  <img src="weather_station.jpeg" />
+</p>
 
 ## Admin Dashboard
 
-```text
-Insert admin dashboard screenshot here
-```
+<p align="center">
+  <img src="weather_station.jpeg" />
+</p>
 
 ## Invoice Generation
 
-```text
-Insert invoice screenshot here
-```
+<p align="center">
+  <img src="weather_station.jpeg" />
+</p>
 
 ---
 
