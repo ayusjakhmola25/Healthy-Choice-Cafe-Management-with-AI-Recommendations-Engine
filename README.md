@@ -169,19 +169,19 @@ PDF Invoice System
 ## Customer Dashboard
 
 <p align="center">
-  <img src="weather_station.jpeg" />
+  <img src="cart.jpeg" />
 </p>
 
 ## Admin Dashboard
 
 <p align="center">
-  <img src="weather_station.jpeg" />
+  <img src="dashboard.jpeg" />
 </p>
 
 ## Invoice Generation
 
 <p align="center">
-  <img src="weather_station.jpeg" />
+  <img src="invoice.jpeg" />
 </p>
 
 ---
